@@ -357,7 +357,8 @@ chatForm.addEventListener('submit', async (e) => {
 
   const assistantIdx = messages.length;
   messages.push({ role: 'assistant', content: '' });
-  const assistantBubble = appendMessage('assistant', '');
+  const assistantBubble = appendMessage('assistant', '……');
+  assistantBubble.style.opacity = '0.5';
 
   try {
     abortController = new AbortController();
@@ -407,6 +408,7 @@ chatForm.addEventListener('submit', async (e) => {
           if (parsed.content) {
             fullContent += parsed.content;
             assistantBubble.textContent = fullContent;
+            assistantBubble.style.opacity = '1';
             scrollToBottom();
           }
         } catch {}
