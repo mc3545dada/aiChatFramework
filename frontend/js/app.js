@@ -95,11 +95,15 @@ async function deleteConv(id) {
   } catch {}
 }
 
-newChatBtn.addEventListener('click', () => {
-  if (currentConvId) saveCurrentConv();
+newChatBtn.addEventListener('click', async () => {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  if (currentConvId && messages.filter(m => m.content).length > 0) {
+    await saveCurrentConv();
+  }
   currentConvId = null;
   messages = [];
   renderMessages();
+  loadConvList();
   userInput.focus();
   if (window.innerWidth <= 700) {
     sidebar.classList.add('hidden-mobile');
@@ -115,19 +119,19 @@ function scheduleSave() {
 
 async function saveCurrentConv() {
   saveTimer = null;
-  // 没有消息不保存
   const filtered = messages.filter(m => m.content);
   if (filtered.length === 0) return;
 
+  const savedId = currentConvId;
   try {
     const res = await fetch('/api/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: currentConvId, messages: filtered }),
+      body: JSON.stringify({ id: savedId, messages: filtered }),
     });
     const data = await res.json();
-    if (data.id) {
-      const isNew = currentConvId !== data.id;
+    if (data.id && currentConvId === savedId) {
+      const isNew = savedId !== data.id;
       currentConvId = data.id;
       if (isNew) loadConvList();
     }
