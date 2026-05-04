@@ -1,49 +1,42 @@
-# AI Chat
+# TinyChat
 
-A full-stack web chat interface for OpenAI-compatible APIs. Features streaming responses, conversation history, file upload with text extraction, and a clean responsive UI.
+A lightweight full-stack web chat interface for OpenAI-compatible APIs. Features streaming responses, thinking/reasoning mode, file upload with text extraction, conversation history, and a clean responsive UI.
 
 ## Features
 
 - **Streaming responses** — real-time token-by-token display (SSE)
-- **Conversation history** — auto-saved, switch between conversations
-- **File upload** — drag-and-drop or button upload, text extraction for .docx and plain text files
-- **Model selection** — fetch available models from your API provider
+- **Thinking / Reasoning mode** — toggle on/off, control effort level (high/max), collapsible reasoning display (DeepSeek R1 / V4)
+- **File upload** — upload .docx, .txt, code files, images and more; backend extracts text for .docx and plain text files
+- **Conversation history** — auto-saved, switch between conversations, delete old ones
+- **Model selection** — fetch available models from your API provider with one click
 - **Multi-provider** — works with OpenAI, DeepSeek, and any OpenAI-compatible API
-- **Conversation history** — auto-saved, switch between conversations
-- **Reasoning display** — shows thinking process for models like DeepSeek-R1
-- **Responsive UI** — desktop and mobile layout
+- **Responsive UI** — desktop and mobile layout with sidebar
 
 ## Quick Start
 
-1. **Clone and install**
-   ```
-   cd backend
-   npm install
-   ```
+```bash
+# Install dependencies
+cd backend
+npm install
 
-2. **Configure your API key**
-   - Edit `backend/.env` (auto-created on first run)
-   - Or configure via the settings panel in the web UI
-   ```
-   API_KEY=sk-your-api-key
-   API_BASE_URL=https://api.openai.com
-   MODEL=gpt-3.5-turbo
-   ```
+# Configure your API key (or use the settings panel in the UI)
+# Edit backend/.env
+API_KEY=sk-your-api-key
+API_BASE_URL=https://api.deepseek.com
+MODEL=deepseek-v4-pro
 
-3. **Start**
-   ```
-   cd backend
-   npm start
-   ```
+# Start
+npm start
+```
 
-4. Open http://localhost:3001
+Open http://localhost:3001
 
-Or double-click `start.bat` on Windows.
+Or double-click `start.bat` on Windows (auto-creates .env from template on first run).
 
 ## Project Structure
 
 ```
-AIWeb/
+TinyChat/
 ├── backend/
 │   ├── server.js          # Express server + API proxy + file parsing
 │   ├── package.json
@@ -62,12 +55,12 @@ AIWeb/
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/chat` | Streaming chat (SSE) |
-| GET | `/api/settings` | Get current settings |
-| POST | `/api/settings` | Save settings |
+| POST | `/api/chat` | Streaming chat (SSE) with thinking params |
+| GET | `/api/settings` | Get current API settings |
+| POST | `/api/settings` | Save API settings |
 | POST | `/api/test` | Test API connection |
 | GET | `/api/models` | List available models |
-| POST | `/api/upload` | Upload and parse files |
+| POST | `/api/upload` | Upload and parse files (.docx, text) |
 | GET | `/api/conversations` | List conversations |
 | POST | `/api/conversations` | Save conversation |
 | DELETE | `/api/conversations/:id` | Delete conversation |
@@ -76,5 +69,9 @@ AIWeb/
 
 - **Frontend:** Vanilla HTML/CSS/JS (no build tools)
 - **Backend:** Node.js + Express
-- **File parsing:** mammoth (.docx)
+- **File parsing:** mammoth (.docx text extraction)
 - **API protocol:** OpenAI-compatible (works with OpenAI, DeepSeek, Ollama, etc.)
+
+## License
+
+MIT
