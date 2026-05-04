@@ -68,7 +68,13 @@ async function processAttachedFiles() {
   if (attachedFiles.length === 0) return null;
   const parts = [];
   for (const af of attachedFiles) {
-    parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]` });
+    let content = '';
+    try { content = await af.file.text(); } catch {}
+    if (content) {
+      parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]\n${content}` });
+    } else {
+      parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]` });
+    }
   }
   attachedFiles = [];
   renderFilePreviews();
@@ -207,9 +213,6 @@ settingsBtn.addEventListener('click', async () => {
 
 settingsClose.addEventListener('click', () => {
   settingsOverlay.classList.add('hidden');
-});
-settingsOverlay.addEventListener('click', (e) => {
-  if (e.target === settingsOverlay) settingsOverlay.classList.add('hidden');
 });
 
 settingsSave.addEventListener('click', async () => {
@@ -375,7 +378,10 @@ function contentToString(content) {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     return content.map(p => {
-      if (p.type === 'text') return p.text;
+      if (p.type === 'text') {
+        const nl = p.text.indexOf('\n');
+        return nl > 0 ? p.text.slice(0, nl) : p.text;
+      }
       return '';
     }).filter(Boolean).join(' ');
   }
@@ -404,9 +410,12 @@ function appendMessage(role, content) {
   if (Array.isArray(content)) {
     for (const part of content) {
       if (part.type === 'text') {
+        // 文件上传内容只显示第一行标记，不显示文件全文
+        const firstNewline = part.text.indexOf('\n');
+        const displayText = firstNewline > 0 ? part.text.slice(0, firstNewline) : part.text;
         const p = document.createElement('div');
         p.style.whiteSpace = 'pre-wrap';
-        p.textContent = part.text;
+        p.textContent = displayText;
         bubble.appendChild(p);
       }
     }
