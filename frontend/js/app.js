@@ -4,6 +4,9 @@ const userInput = document.getElementById('user-input');
 const messagesContainer = document.getElementById('messages');
 const loading = document.getElementById('loading');
 const sendBtn = document.getElementById('send-btn');
+const fileBtn = document.getElementById('file-btn');
+const fileInput = document.getElementById('file-input');
+const filePreviews = document.getElementById('file-previews');
 
 const settingsBtn = document.getElementById('settings-btn');
 const settingsOverlay = document.getElementById('settings-overlay');
@@ -22,6 +25,63 @@ let messages = [];
 let currentConvId = null;
 let abortController = null;
 let saveTimer = null;
+let attachedFiles = []; // {file, name, size, type}
+
+// ---- 文件上传 ----
+const TEXT_EXTENSIONS = new Set(['.txt','.md','.js','.py','.html','.css','.json','.csv','.xml','.yaml','.yml','.sh','.bat','.log','.env','.ini','.cfg','.conf','.sql','.rs','.go','.java','.ts','.tsx','.jsx','.vue','.php','.rb','.pl','.lua','.zig','.toml']);
+const IMAGE_EXTENSIONS = new Set(['.png','.jpg','.jpeg','.gif','.webp','.bmp']);
+
+fileBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  for (const file of fileInput.files) {
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!TEXT_EXTENSIONS.has(ext) && !IMAGE_EXTENSIONS.has(ext)) continue;
+    if (file.size > 10 * 1024 * 1024) { alert('文件 ' + file.name + ' 超过 10MB 限制'); continue; }
+    attachedFiles.push({ file, name: file.name, size: file.size, type: ext });
+  }
+  fileInput.value = '';
+  renderFilePreviews();
+});
+
+function renderFilePreviews() {
+  if (attachedFiles.length === 0) { filePreviews.classList.add('hidden'); return; }
+  filePreviews.classList.remove('hidden');
+  filePreviews.innerHTML = attachedFiles.map((f, i) =>
+    `<span class="file-chip">${escHtml(f.name)} <button data-idx="${i}" class="file-chip-del">&times;</button></span>`
+  ).join('');
+  filePreviews.querySelectorAll('.file-chip-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      attachedFiles.splice(parseInt(btn.dataset.idx), 1);
+      renderFilePreviews();
+    });
+  });
+}
+
+async function processAttachedFiles() {
+  if (attachedFiles.length === 0) return null;
+  const parts = [];
+  for (const af of attachedFiles) {
+    if (IMAGE_EXTENSIONS.has(af.type)) {
+      const b64 = await fileToBase64(af.file);
+      parts.push({ type: 'image_url', image_url: { url: b64 } });
+    } else {
+      const text = await af.file.text();
+      parts.push({ type: 'text', text: `[文件: ${af.name}]\n${text}` });
+    }
+  }
+  attachedFiles = [];
+  renderFilePreviews();
+  return parts;
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 // ---- 侧边栏 ----
 sidebarToggle.addEventListener('click', () => {
@@ -29,7 +89,6 @@ sidebarToggle.addEventListener('click', () => {
   sidebar.classList.toggle('show-mobile');
 });
 
-// 点击外部关闭侧栏（移动端）
 document.addEventListener('click', (e) => {
   if (window.innerWidth > 700) return;
   if (!sidebar.contains(e.target) && e.target !== sidebarToggle) {
@@ -44,6 +103,10 @@ async function loadConvList() {
     const res = await fetch('/api/conversations');
     const list = await res.json();
     convList.innerHTML = '';
+    if (list.length === 0) {
+      convList.innerHTML = '<div class="conv-empty">暂无对话</div>';
+      return;
+    }
     for (const conv of list) {
       const item = document.createElement('div');
       item.className = 'conv-item' + (conv.id === currentConvId ? ' active' : '');
@@ -73,7 +136,6 @@ async function switchConv(id) {
     messages = conv.messages || [];
     renderMessages();
     loadConvList();
-    // 移动端自动收起侧栏
     if (window.innerWidth <= 700) {
       sidebar.classList.add('hidden-mobile');
       sidebar.classList.remove('show-mobile');
@@ -102,6 +164,8 @@ newChatBtn.addEventListener('click', async () => {
   }
   currentConvId = null;
   messages = [];
+  attachedFiles = [];
+  renderFilePreviews();
   renderMessages();
   loadConvList();
   userInput.focus();
@@ -131,10 +195,9 @@ async function saveCurrentConv() {
     });
     const data = await res.json();
     if (data.id && currentConvId === savedId) {
-      const isNew = savedId !== data.id;
       currentConvId = data.id;
-      if (isNew) loadConvList();
     }
+    loadConvList();
   } catch {}
 }
 
@@ -194,17 +257,27 @@ userInput.addEventListener('keydown', (e) => {
 chatForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const text = userInput.value.trim();
-  if (!text) return;
+  if (!text && attachedFiles.length === 0) return;
 
-  messages.push({ role: 'user', content: text });
-  appendMessage('user', text);
+  // 处理上传的文件
+  const fileParts = await processAttachedFiles();
+
+  // 构建消息 content（纯文本或数组）
+  let userContent;
+  if (fileParts) {
+    if (text) fileParts.unshift({ type: 'text', text });
+    userContent = fileParts;
+  } else {
+    userContent = text;
+  }
+
+  messages.push({ role: 'user', content: userContent });
+  appendMessage('user', userContent);
 
   userInput.value = '';
   userInput.style.height = 'auto';
 
-  // 用户发消息后触发自动保存
   scheduleSave();
-
   setLoading(true);
 
   const assistantIndex = messages.length;
@@ -260,12 +333,11 @@ chatForm.addEventListener('submit', async (e) => {
     }
 
     messages[assistantIndex].content = fullContent;
-    // AI 回复后自动保存
     scheduleSave();
 
   } catch (err) {
     if (err.name === 'AbortError') return;
-    assistantBubble.textContent = `请求失败: ${err.message}`;
+    assistantBubble.textContent = '请求失败: ' + err.message;
     assistantBubble.parentElement.className = 'message error';
   } finally {
     setLoading(false);
@@ -278,6 +350,25 @@ function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+function contentToString(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map(p => {
+      if (p.type === 'text') return p.text;
+      if (p.type === 'image_url') return '[图片]';
+      return '';
+    }).filter(Boolean).join('\n');
+  }
+  return '';
+}
+
+function appendImagePreview(url) {
+  const img = document.createElement('img');
+  img.src = url;
+  img.className = 'msg-image';
+  return img;
 }
 
 function renderMessages() {
@@ -298,7 +389,29 @@ function appendMessage(role, content) {
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.textContent = content;
+
+  if (Array.isArray(content)) {
+    for (const part of content) {
+      if (part.type === 'text') {
+        const p = document.createElement('div');
+        p.style.whiteSpace = 'pre-wrap';
+        p.textContent = part.text;
+        bubble.appendChild(p);
+      } else if (part.type === 'image_url') {
+        const img = document.createElement('img');
+        img.src = part.image_url.url;
+        img.className = 'msg-image';
+        // 限制预览尺寸
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '300px';
+        img.style.borderRadius = '8px';
+        img.style.marginTop = '4px';
+        bubble.appendChild(img);
+      }
+    }
+  } else {
+    bubble.textContent = content;
+  }
 
   div.appendChild(label);
   div.appendChild(bubble);
@@ -310,6 +423,7 @@ function appendMessage(role, content) {
 function setLoading(active) {
   loading.classList.toggle('hidden', !active);
   sendBtn.disabled = active;
+  fileBtn.disabled = active;
 }
 
 function scrollToBottom() {

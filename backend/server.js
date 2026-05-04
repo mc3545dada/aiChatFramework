@@ -156,7 +156,13 @@ function generateId() {
 function generateTitle(messages) {
   const first = messages.find(m => m.role === 'user');
   if (!first) return '新对话';
-  const t = first.content.trim();
+  let t = '';
+  if (typeof first.content === 'string') t = first.content;
+  else if (Array.isArray(first.content)) {
+    const textPart = first.content.find(p => p.type === 'text');
+    t = textPart ? textPart.text : '文件消息';
+  }
+  t = t.trim();
   return t.length > 30 ? t.slice(0, 30) + '...' : t;
 }
 

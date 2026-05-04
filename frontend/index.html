@@ -34,7 +34,10 @@
       </main>
 
       <footer>
+        <div id="file-previews" class="hidden"></div>
         <form id="chat-form">
+          <button type="button" id="file-btn" title="上传文件">&#128206;</button>
+          <input type="file" id="file-input" multiple hidden accept=".txt,.md,.js,.py,.html,.css,.json,.csv,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.zip,.tar,.gz,.7z">
           <textarea
             id="user-input"
             rows="1"

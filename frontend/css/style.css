@@ -106,6 +106,13 @@ body {
   visibility: visible;
 }
 
+.conv-empty {
+  text-align: center;
+  color: #bbb;
+  font-size: 13px;
+  padding: 32px 16px;
+}
+
 .conv-item .conv-del:hover {
   color: #ff4d4f;
   background: #fff1f0;
@@ -164,6 +171,74 @@ header h1 {
 #settings-btn:hover {
   background: #f0f0f0;
   color: #1a1a1a;
+}
+
+/* File upload */
+#file-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: #999;
+  transition: background 0.2s, color 0.2s;
+  line-height: 1;
+}
+
+#file-btn:hover {
+  background: #f0f0f0;
+  color: #555;
+}
+
+#file-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#file-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 4px 8px 4px;
+}
+
+#file-previews.hidden {
+  display: none;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #f0f5ff;
+  border: 1px solid #d0e0ff;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #1677ff;
+}
+
+.file-chip-del {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.file-chip-del:hover {
+  color: #ff4d4f;
+}
+
+.msg-image {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  margin-top: 4px;
 }
 
 /* Chat area */
