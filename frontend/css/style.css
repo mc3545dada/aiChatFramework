@@ -314,21 +314,42 @@ header h1 {
   margin-bottom: 12px;
   border-left: 3px solid #faad14;
   background: #fffbe6;
-  border-radius: 4px;
-  padding: 8px 12px;
+  border-radius: 6px;
   font-size: 13px;
+  overflow: hidden;
 }
 
-.reasoning-summary {
-  font-weight: 600;
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
   color: #d48806;
-  margin-bottom: 4px;
+  font-weight: 600;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.reasoning-header:hover {
+  background: #fff3cd;
+}
+
+.reasoning-toggle {
+  font-size: 10px;
+  transition: transform 0.15s;
 }
 
 .reasoning-content {
   color: #8c8c8c;
   white-space: pre-wrap;
   line-height: 1.5;
+  padding: 0 12px 8px 12px;
+}
+
+.reasoning-box.collapsed .reasoning-content {
+  display: none;
+}
 }
 
 .message.user .file-card {

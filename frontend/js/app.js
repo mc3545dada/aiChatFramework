@@ -438,14 +438,22 @@ function updateReasoningDisplay(bubble, text) {
   let el = bubble.querySelector('.reasoning-box');
   if (!el) {
     el = document.createElement('div');
-    el.className = 'reasoning-box';
-    const summary = document.createElement('div');
-    summary.className = 'reasoning-summary';
-    summary.textContent = '&#128300; 思考中...';
-    el.appendChild(summary);
+    el.className = 'reasoning-box collapsed';
+
+    const header = document.createElement('div');
+    header.className = 'reasoning-header';
+    header.innerHTML = '<span class="reasoning-toggle">&#9654;</span><span>&#128300; 已思考</span>';
+    header.addEventListener('click', () => {
+      el.classList.toggle('collapsed');
+      header.querySelector('.reasoning-toggle').textContent =
+        el.classList.contains('collapsed') ? '▶' : '▼';
+    });
+
     const content = document.createElement('div');
     content.className = 'reasoning-content';
     content.textContent = text;
+
+    el.appendChild(header);
     el.appendChild(content);
     bubble.prepend(el);
   } else {
