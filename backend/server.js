@@ -61,6 +61,42 @@ app.post('/api/settings', (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/test — 测试 API 连接
+app.post('/api/test', async (req, res) => {
+  const settings = getSettings();
+
+  if (!settings.apiKey) {
+    return res.json({ ok: false, msg: '请先配置 API_KEY' });
+  }
+
+  try {
+    const response = await fetch(`${settings.apiBaseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${settings.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: settings.model,
+        messages: [{ role: 'user', content: 'Say hi in one word.' }],
+        stream: false,
+        max_tokens: 10,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      return res.json({ ok: false, msg: `API ${response.status}: ${text.slice(0, 200)}` });
+    }
+
+    const data = await response.json();
+    const reply = data.choices?.[0]?.message?.content || '';
+    res.json({ ok: true, msg: `连接成功！响应: ${reply.trim()}` });
+  } catch (err) {
+    res.json({ ok: false, msg: `请求失败: ${err.message}` });
+  }
+});
+
 // POST /api/chat — 流式代理到 OpenAI 兼容 API
 app.post('/api/chat', async (req, res) => {
   const { messages, model } = req.body;

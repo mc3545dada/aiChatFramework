@@ -15,6 +15,8 @@ const settingsSave = document.getElementById('settings-save');
 const settingUrl = document.getElementById('setting-url');
 const settingModel = document.getElementById('setting-model');
 const settingKey = document.getElementById('setting-key');
+const testBtn = document.getElementById('test-btn');
+const testResult = document.getElementById('test-result');
 
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('sidebar');
@@ -65,8 +67,7 @@ async function processAttachedFiles() {
       const b64 = await fileToBase64(af.file);
       parts.push({ type: 'image_url', image_url: { url: b64 } });
     } else {
-      const text = await af.file.text();
-      parts.push({ type: 'text', text: `[文件: ${af.name}]\n${text}` });
+      parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]` });
     }
   }
   attachedFiles = [];
@@ -241,6 +242,33 @@ settingsSave.addEventListener('click', async () => {
   }
 });
 
+// ---- API 连接测试 ----
+testBtn.addEventListener('click', async () => {
+  testResult.className = 'test-msg';
+  testResult.textContent = '测试中...';
+
+  // 先保存当前输入，确保测试用的是最新配置
+  const body = {};
+  if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
+  if (settingModel.value.trim()) body.model = settingModel.value.trim();
+  if (settingKey.value.trim()) body.apiKey = settingKey.value.trim();
+  if (Object.keys(body).length) {
+    await fetch('/api/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+  }
+
+  try {
+    const res = await fetch('/api/test', { method: 'POST' });
+    const data = await res.json();
+    testResult.className = data.ok ? 'test-msg test-ok' : 'test-msg test-fail';
+    testResult.textContent = data.msg;
+  } catch (err) {
+    testResult.className = 'test-msg test-fail';
+    testResult.textContent = '请求失败: ' + err.message;
+  }
+});
+
 // ---- 聊天功能 ----
 userInput.addEventListener('input', () => {
   userInput.style.height = 'auto';
@@ -359,7 +387,7 @@ function contentToString(content) {
       if (p.type === 'text') return p.text;
       if (p.type === 'image_url') return '[图片]';
       return '';
-    }).filter(Boolean).join('\n');
+    }).filter(Boolean).join(' ');
   }
   return '';
 }
