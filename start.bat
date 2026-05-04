@@ -6,6 +6,17 @@ echo ========================================
 echo.
 
 cd backend
+
+:: Auto-create .env from template if missing
+if not exist ".env" (
+    if exist ".env.example" (
+        copy ".env.example" ".env" >nul
+        echo First time setup: .env file created from .env.example
+        echo Please edit backend\.env to set your API_KEY before using.
+        echo.
+    )
+)
+
 echo [1/2] Installing dependencies...
 call npm install
 if %errorlevel% neq 0 (

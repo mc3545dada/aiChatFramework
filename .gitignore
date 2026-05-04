@@ -2,7 +2,4 @@ node_modules/
 backend/.env
 backend/config.json
 backend/conversations/
-backend/package-lock.json
 backend/uploads/
-backend/node_modules/
-package-lock.json
