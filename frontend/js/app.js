@@ -30,14 +30,19 @@ let saveTimer = null;
 let attachedFiles = []; // {file, name, size, type}
 
 // ---- 文件上传 ----
-const TEXT_EXTENSIONS = new Set(['.txt','.md','.js','.py','.html','.css','.json','.csv','.xml','.yaml','.yml','.sh','.bat','.log','.env','.ini','.cfg','.conf','.sql','.rs','.go','.java','.ts','.tsx','.jsx','.vue','.php','.rb','.pl','.lua','.zig','.toml']);
-const IMAGE_EXTENSIONS = new Set(['.png','.jpg','.jpeg','.gif','.webp','.bmp']);
+const ALLOWED_EXTENSIONS = new Set([
+  '.txt','.md','.js','.py','.html','.css','.json','.csv','.xml','.yaml','.yml',
+  '.sh','.bat','.log','.env','.ini','.cfg','.conf','.sql','.rs','.go','.java',
+  '.ts','.tsx','.jsx','.vue','.php','.rb','.pl','.lua','.zig','.toml',
+  '.png','.jpg','.jpeg','.gif','.webp','.bmp',
+  '.pdf','.doc','.docx','.xls','.xlsx','.zip','.tar','.gz','.7z','.rar',
+]);
 
 fileBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   for (const file of fileInput.files) {
     const ext = '.' + file.name.split('.').pop().toLowerCase();
-    if (!TEXT_EXTENSIONS.has(ext) && !IMAGE_EXTENSIONS.has(ext)) continue;
+    if (!ALLOWED_EXTENSIONS.has(ext)) continue;
     if (file.size > 10 * 1024 * 1024) { alert('文件 ' + file.name + ' 超过 10MB 限制'); continue; }
     attachedFiles.push({ file, name: file.name, size: file.size, type: ext });
   }
@@ -63,25 +68,11 @@ async function processAttachedFiles() {
   if (attachedFiles.length === 0) return null;
   const parts = [];
   for (const af of attachedFiles) {
-    if (IMAGE_EXTENSIONS.has(af.type)) {
-      const b64 = await fileToBase64(af.file);
-      parts.push({ type: 'image_url', image_url: { url: b64 } });
-    } else {
-      parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]` });
-    }
+    parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]` });
   }
   attachedFiles = [];
   renderFilePreviews();
   return parts;
-}
-
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 // ---- 侧边栏 ----
@@ -385,18 +376,10 @@ function contentToString(content) {
   if (Array.isArray(content)) {
     return content.map(p => {
       if (p.type === 'text') return p.text;
-      if (p.type === 'image_url') return '[图片]';
       return '';
     }).filter(Boolean).join(' ');
   }
   return '';
-}
-
-function appendImagePreview(url) {
-  const img = document.createElement('img');
-  img.src = url;
-  img.className = 'msg-image';
-  return img;
 }
 
 function renderMessages() {
@@ -425,16 +408,6 @@ function appendMessage(role, content) {
         p.style.whiteSpace = 'pre-wrap';
         p.textContent = part.text;
         bubble.appendChild(p);
-      } else if (part.type === 'image_url') {
-        const img = document.createElement('img');
-        img.src = part.image_url.url;
-        img.className = 'msg-image';
-        // 限制预览尺寸
-        img.style.maxWidth = '100%';
-        img.style.maxHeight = '300px';
-        img.style.borderRadius = '8px';
-        img.style.marginTop = '4px';
-        bubble.appendChild(img);
       }
     }
   } else {
