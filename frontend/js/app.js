@@ -1,3 +1,4 @@
+// ---- DOM refs ----
 const chatForm = document.getElementById('chat-form');
 const userInput = document.getElementById('user-input');
 const messagesContainer = document.getElementById('messages');
@@ -12,12 +13,128 @@ const settingUrl = document.getElementById('setting-url');
 const settingModel = document.getElementById('setting-model');
 const settingKey = document.getElementById('setting-key');
 
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const sidebar = document.getElementById('sidebar');
+const convList = document.getElementById('conv-list');
+const newChatBtn = document.getElementById('new-chat-btn');
+
 let messages = [];
+let currentConvId = null;
 let abortController = null;
+let saveTimer = null;
+
+// ---- 侧边栏 ----
+sidebarToggle.addEventListener('click', () => {
+  sidebar.classList.toggle('hidden-mobile');
+  sidebar.classList.toggle('show-mobile');
+});
+
+// 点击外部关闭侧栏（移动端）
+document.addEventListener('click', (e) => {
+  if (window.innerWidth > 700) return;
+  if (!sidebar.contains(e.target) && e.target !== sidebarToggle) {
+    sidebar.classList.add('hidden-mobile');
+    sidebar.classList.remove('show-mobile');
+  }
+});
+
+// ---- 对话列表 ----
+async function loadConvList() {
+  try {
+    const res = await fetch('/api/conversations');
+    const list = await res.json();
+    convList.innerHTML = '';
+    for (const conv of list) {
+      const item = document.createElement('div');
+      item.className = 'conv-item' + (conv.id === currentConvId ? ' active' : '');
+      item.innerHTML = `
+        <span class="conv-title">${escHtml(conv.title || '新对话')}</span>
+        <button class="conv-del" data-id="${conv.id}">&times;</button>
+      `;
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.conv-del')) return;
+        switchConv(conv.id);
+      });
+      item.querySelector('.conv-del').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await deleteConv(conv.id);
+      });
+      convList.appendChild(item);
+    }
+  } catch {}
+}
+
+async function switchConv(id) {
+  if (currentConvId) await saveCurrentConv();
+  try {
+    const res = await fetch(`/api/conversations/${id}`);
+    const conv = await res.json();
+    currentConvId = conv.id;
+    messages = conv.messages || [];
+    renderMessages();
+    loadConvList();
+    // 移动端自动收起侧栏
+    if (window.innerWidth <= 700) {
+      sidebar.classList.add('hidden-mobile');
+      sidebar.classList.remove('show-mobile');
+    }
+  } catch (err) {
+    console.error('Failed to load conversation', err);
+  }
+}
+
+async function deleteConv(id) {
+  try {
+    await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
+    if (currentConvId === id) {
+      currentConvId = null;
+      messages = [];
+      renderMessages();
+    }
+    loadConvList();
+  } catch {}
+}
+
+newChatBtn.addEventListener('click', () => {
+  if (currentConvId) saveCurrentConv();
+  currentConvId = null;
+  messages = [];
+  renderMessages();
+  userInput.focus();
+  if (window.innerWidth <= 700) {
+    sidebar.classList.add('hidden-mobile');
+    sidebar.classList.remove('show-mobile');
+  }
+});
+
+// ---- 自动保存对话 ----
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveCurrentConv, 1500);
+}
+
+async function saveCurrentConv() {
+  saveTimer = null;
+  // 没有消息不保存
+  const filtered = messages.filter(m => m.content);
+  if (filtered.length === 0) return;
+
+  try {
+    const res = await fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: currentConvId, messages: filtered }),
+    });
+    const data = await res.json();
+    if (data.id) {
+      const isNew = currentConvId !== data.id;
+      currentConvId = data.id;
+      if (isNew) loadConvList();
+    }
+  } catch {}
+}
 
 // ---- 设置功能 ----
-
-// 打开设置弹窗并加载当前设置
 settingsBtn.addEventListener('click', async () => {
   settingsOverlay.classList.remove('hidden');
   try {
@@ -25,12 +142,10 @@ settingsBtn.addEventListener('click', async () => {
     const data = await res.json();
     settingUrl.value = data.apiBaseUrl || '';
     settingModel.value = data.model || '';
-    // API Key 只回传是否有值，不暴露完整密钥
     settingKey.placeholder = data.hasKey ? '(已设置，留空则不修改)' : 'sk-...';
   } catch {}
 });
 
-// 关闭弹窗
 settingsClose.addEventListener('click', () => {
   settingsOverlay.classList.add('hidden');
 });
@@ -38,7 +153,6 @@ settingsOverlay.addEventListener('click', (e) => {
   if (e.target === settingsOverlay) settingsOverlay.classList.add('hidden');
 });
 
-// 保存设置
 settingsSave.addEventListener('click', async () => {
   const body = {};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
@@ -61,7 +175,6 @@ settingsSave.addEventListener('click', async () => {
 });
 
 // ---- 聊天功能 ----
-
 userInput.addEventListener('input', () => {
   userInput.style.height = 'auto';
   userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
@@ -84,6 +197,9 @@ chatForm.addEventListener('submit', async (e) => {
 
   userInput.value = '';
   userInput.style.height = 'auto';
+
+  // 用户发消息后触发自动保存
+  scheduleSave();
 
   setLoading(true);
 
@@ -140,6 +256,8 @@ chatForm.addEventListener('submit', async (e) => {
     }
 
     messages[assistantIndex].content = fullContent;
+    // AI 回复后自动保存
+    scheduleSave();
 
   } catch (err) {
     if (err.name === 'AbortError') return;
@@ -150,6 +268,21 @@ chatForm.addEventListener('submit', async (e) => {
     abortController = null;
   }
 });
+
+// ---- 工具函数 ----
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function renderMessages() {
+  messagesContainer.innerHTML = '';
+  for (const msg of messages) {
+    if (!msg.content) continue;
+    appendMessage(msg.role, msg.content);
+  }
+}
 
 function appendMessage(role, content) {
   const div = document.createElement('div');
@@ -179,3 +312,6 @@ function scrollToBottom() {
   const container = document.getElementById('chat-container');
   container.scrollTop = container.scrollHeight;
 }
+
+// ---- 初始化 ----
+loadConvList();

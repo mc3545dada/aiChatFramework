@@ -7,6 +7,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CONFIG_PATH = path.join(__dirname, 'config.json');
+const CONV_DIR = path.join(__dirname, 'conversations');
 
 // 从 config.json 读取设置
 function loadConfig() {
@@ -135,6 +136,109 @@ app.post('/api/chat', async (req, res) => {
     res.write('data: [DONE]\n\n');
     res.end();
   }
+});
+
+// ---- 对话历史 API ----
+
+function ensureConvDir() {
+  if (!fs.existsSync(CONV_DIR)) fs.mkdirSync(CONV_DIR, { recursive: true });
+}
+
+function convPath(id) {
+  return path.join(CONV_DIR, `${id}.json`);
+}
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// 生成对话标题（取第一条用户消息的前 30 个字符）
+function generateTitle(messages) {
+  const first = messages.find(m => m.role === 'user');
+  if (!first) return '新对话';
+  const t = first.content.trim();
+  return t.length > 30 ? t.slice(0, 30) + '...' : t;
+}
+
+// GET /api/conversations — 列出所有对话
+app.get('/api/conversations', (req, res) => {
+  ensureConvDir();
+  try {
+    const files = fs.readdirSync(CONV_DIR).filter(f => f.endsWith('.json'));
+    const list = files.map(f => {
+      const data = JSON.parse(fs.readFileSync(path.join(CONV_DIR, f), 'utf-8'));
+      return {
+        id: data.id,
+        title: data.title,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        messageCount: data.messages ? data.messages.length : 0,
+      };
+    });
+    list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/conversations/:id — 获取单个对话
+app.get('/api/conversations/:id', (req, res) => {
+  ensureConvDir();
+  const file = convPath(req.params.id);
+  if (!fs.existsSync(file)) {
+    return res.status(404).json({ error: '对话不存在' });
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/conversations — 保存对话（新建 / 更新）
+app.post('/api/conversations', (req, res) => {
+  ensureConvDir();
+  const { id, messages } = req.body;
+
+  if (!messages || !Array.isArray(messages)) {
+    return res.status(400).json({ error: 'messages 是必填项' });
+  }
+
+  const now = Date.now();
+
+  if (id && fs.existsSync(convPath(id))) {
+    // 更新已有对话
+    const existing = JSON.parse(fs.readFileSync(convPath(id), 'utf-8'));
+    existing.messages = messages;
+    existing.title = generateTitle(messages);
+    existing.updatedAt = now;
+    fs.writeFileSync(convPath(id), JSON.stringify(existing, null, 2), 'utf-8');
+    return res.json({ id: existing.id });
+  }
+
+  // 新建对话
+  const newConv = {
+    id: generateId(),
+    title: generateTitle(messages),
+    messages,
+    createdAt: now,
+    updatedAt: now,
+  };
+  fs.writeFileSync(convPath(newConv.id), JSON.stringify(newConv, null, 2), 'utf-8');
+  res.json({ id: newConv.id });
+});
+
+// DELETE /api/conversations/:id — 删除对话
+app.delete('/api/conversations/:id', (req, res) => {
+  ensureConvDir();
+  const file = convPath(req.params.id);
+  if (!fs.existsSync(file)) {
+    return res.status(404).json({ error: '对话不存在' });
+  }
+  fs.unlinkSync(file);
+  res.json({ success: true });
 });
 
 // SPA 回退
