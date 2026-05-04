@@ -20,6 +20,9 @@ const testResult = document.getElementById('test-result');
 const fetchModelsBtn = document.getElementById('fetch-models-btn');
 const modelSelectWrap = document.getElementById('model-list-wrap');
 const modelSelect = document.getElementById('model-select');
+const thinkingToggle = document.getElementById('thinking-toggle');
+const effortSelect = document.getElementById('effort-select');
+const effortLabel = document.getElementById('effort-label');
 
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('sidebar');
@@ -207,6 +210,10 @@ async function saveCurrentConv() {
 // ---- 设置功能 ----
 settingsBtn.addEventListener('click', async () => {
   settingsOverlay.classList.remove('hidden');
+  // 从 localStorage 加载思考模式设置
+  thinkingToggle.checked = localStorage.getItem('thinkingEnabled') !== 'false';
+  effortSelect.value = localStorage.getItem('reasoningEffort') || 'high';
+  effortLabel.style.display = thinkingToggle.checked ? '' : 'none';
   try {
     const res = await fetch('/api/settings');
     const data = await res.json();
@@ -214,6 +221,10 @@ settingsBtn.addEventListener('click', async () => {
     settingModel.value = data.model || '';
     settingKey.placeholder = data.hasKey ? '(已设置，留空则不修改)' : 'sk-...';
   } catch {}
+});
+
+thinkingToggle.addEventListener('change', () => {
+  effortLabel.style.display = thinkingToggle.checked ? '' : 'none';
 });
 
 settingsClose.addEventListener('click', () => {
@@ -225,6 +236,9 @@ settingsSave.addEventListener('click', async () => {
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
   if (settingKey.value.trim()) body.apiKey = settingKey.value.trim();
+  // 保存思考模式设置到 localStorage
+  localStorage.setItem('thinkingEnabled', thinkingToggle.checked);
+  localStorage.setItem('reasoningEffort', effortSelect.value);
 
   try {
     const res = await fetch('/api/settings', {
@@ -365,7 +379,11 @@ chatForm.addEventListener('submit', async (e) => {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: apiMessages }),
+      body: JSON.stringify({
+        messages: apiMessages,
+        thinkingEnabled: localStorage.getItem('thinkingEnabled') !== 'false',
+        reasoningEffort: localStorage.getItem('reasoningEffort') || 'high',
+      }),
       signal: abortController.signal,
     });
 

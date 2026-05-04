@@ -600,6 +600,36 @@ footer {
   color: #555;
 }
 
+/* Toggle switch */
+.switch-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+#thinking-toggle {
+  width: 40px !important;
+  height: 22px !important;
+  appearance: auto;
+  cursor: pointer;
+}
+
+#effort-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+}
+
+#effort-select:focus {
+  border-color: #1677ff;
+}
+
 .modal-body label input {
   padding: 8px 12px;
   border: 1px solid #d9d9d9;

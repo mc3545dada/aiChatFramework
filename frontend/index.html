@@ -75,6 +75,17 @@
           API 密钥
           <input id="setting-key" type="password" placeholder="sk-...">
         </label>
+        <label class="switch-row">
+          <span>思考模式</span>
+          <input id="thinking-toggle" type="checkbox" checked>
+        </label>
+        <label id="effort-label">
+          思考强度
+          <select id="effort-select">
+            <option value="high">high（默认）</option>
+            <option value="max">max（更强）</option>
+          </select>
+        </label>
         <p class="hint">修改后自动保存，重启服务后仍然有效</p>
         <div id="test-result" class="hidden"></div>
         <button id="test-btn" class="btn-test">测试 API 连接</button>

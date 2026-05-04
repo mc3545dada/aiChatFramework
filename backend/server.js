@@ -173,7 +173,7 @@ app.get('/api/models', async (req, res) => {
 
 // POST /api/chat — 流式代理到 OpenAI 兼容 API
 app.post('/api/chat', async (req, res) => {
-  const { messages, model } = req.body;
+  const { messages, model, reasoningEffort, thinkingEnabled } = req.body;
   const settings = getSettings();
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -200,6 +200,10 @@ app.post('/api/chat', async (req, res) => {
         model: model || settings.model,
         messages,
         stream: true,
+        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+        ...(thinkingEnabled !== undefined ? {
+          extra_body: { thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' } }
+        } : {}),
       }),
     });
 
@@ -231,9 +235,12 @@ app.post('/api/chat', async (req, res) => {
 
         try {
           const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
-          if (delta) {
-            res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+          const choice = parsed.choices?.[0]?.delta;
+          if (choice?.reasoning_content) {
+            res.write(`data: ${JSON.stringify({ reasoning_content: choice.reasoning_content })}\n\n`);
+          }
+          if (choice?.content) {
+            res.write(`data: ${JSON.stringify({ content: choice.content })}\n\n`);
           }
         } catch {}
       }
