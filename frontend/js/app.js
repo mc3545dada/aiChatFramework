@@ -37,13 +37,6 @@ const ALLOWED_EXTENSIONS = new Set([
   '.png','.jpg','.jpeg','.gif','.webp','.bmp',
   '.pdf','.doc','.docx','.xls','.xlsx','.zip','.tar','.gz','.7z','.rar',
 ]);
-// 可以用 file.text() 提取出可读文本的扩展名
-const TEXT_READABLE = new Set([
-  '.txt','.md','.js','.py','.html','.css','.json','.csv','.xml','.yaml','.yml',
-  '.sh','.bat','.log','.env','.ini','.cfg','.conf','.sql','.rs','.go','.java',
-  '.ts','.tsx','.jsx','.vue','.php','.rb','.pl','.lua','.zig','.toml',
-]);
-
 fileBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   for (const file of fileInput.files) {
@@ -70,24 +63,24 @@ function renderFilePreviews() {
   });
 }
 
-async function processAttachedFiles() {
-  if (attachedFiles.length === 0) return null;
-  const parts = [];
+// 上传文件到后端解析，返回 [{ name, text }]
+async function uploadFiles() {
+  if (attachedFiles.length === 0) return [];
+  const results = [];
   for (const af of attachedFiles) {
-    if (TEXT_READABLE.has(af.type)) {
-      try {
-        const content = await af.file.text();
-        if (content) {
-          parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]\n${content}` });
-          continue;
-        }
-      } catch {}
+    const fd = new FormData();
+    fd.append('file', af.file);
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      results.push({ name: data.name, text: data.text || '' });
+    } catch {
+      results.push({ name: af.name, text: '' });
     }
-    parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]` });
   }
   attachedFiles = [];
   renderFilePreviews();
-  return parts;
+  return results;
 }
 
 // ---- 侧边栏 ----
@@ -290,20 +283,15 @@ chatForm.addEventListener('submit', async (e) => {
   const text = userInput.value.trim();
   if (!text && attachedFiles.length === 0) return;
 
-  // 处理上传的文件
-  const fileParts = await processAttachedFiles();
+  // 上传文件到后端解析
+  const fileResults = await uploadFiles();
 
-  // 构建消息 content（纯文本或数组）
-  let userContent;
-  if (fileParts) {
-    if (text) fileParts.unshift({ type: 'text', text });
-    userContent = fileParts;
-  } else {
-    userContent = text;
-  }
+  // 存入消息（content 只存用户文本，files 存文件元数据）
+  const userMsg = { role: 'user', content: text, files: fileResults };
+  messages.push(userMsg);
 
-  messages.push({ role: 'user', content: userContent });
-  appendMessage('user', userContent);
+  // 显示用户消息（文本 + 文件卡片）
+  appendMessage('user', text, fileResults);
 
   userInput.value = '';
   userInput.style.height = 'auto';
@@ -311,17 +299,34 @@ chatForm.addEventListener('submit', async (e) => {
   scheduleSave();
   setLoading(true);
 
-  const assistantIndex = messages.length;
+  // 构建发给 API 的 messages（历史 + 用户消息 + 文件内容）
+  const apiMessages = messages.slice(0, -1).map(m => {
+    if (m.role === 'user' && m.files && m.files.length) {
+      let full = m.content || '';
+      for (const f of m.files) {
+        if (f.text) full += `\n\n[文件内容: ${f.name}]\n${f.text}`;
+      }
+      return { role: 'user', content: full };
+    }
+    return { role: m.role, content: m.content || '' };
+  });
+  // 当前用户消息（文本 + 文件内容拼接）
+  let fullUserText = text;
+  for (const f of fileResults) {
+    if (f.text) fullUserText += `\n\n[文件内容: ${f.name}]\n${f.text}`;
+  }
+  apiMessages.push({ role: 'user', content: fullUserText });
+
+  const assistantIdx = messages.length;
   messages.push({ role: 'assistant', content: '' });
   const assistantBubble = appendMessage('assistant', '');
 
   try {
     abortController = new AbortController();
-
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: messages.slice(0, assistantIndex) }),
+      body: JSON.stringify({ messages: apiMessages }),
       signal: abortController.signal,
     });
 
@@ -341,19 +346,16 @@ chatForm.addEventListener('submit', async (e) => {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed.startsWith('data: ')) continue;
-
         const data = trimmed.slice(6);
         if (data === '[DONE]') continue;
 
         try {
           const parsed = JSON.parse(data);
-
           if (parsed.error) {
             assistantBubble.textContent = parsed.error;
             assistantBubble.parentElement.className = 'message error';
             return;
           }
-
           if (parsed.content) {
             fullContent += parsed.content;
             assistantBubble.textContent = fullContent;
@@ -363,7 +365,7 @@ chatForm.addEventListener('submit', async (e) => {
       }
     }
 
-    messages[assistantIndex].content = fullContent;
+    messages[assistantIdx].content = fullContent;
     scheduleSave();
 
   } catch (err) {
@@ -383,29 +385,25 @@ function escHtml(s) {
   return d.innerHTML;
 }
 
-function contentToString(content) {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content.map(p => {
-      if (p.type === 'text') {
-        const nl = p.text.indexOf('\n');
-        return nl > 0 ? p.text.slice(0, nl) : p.text;
-      }
-      return '';
-    }).filter(Boolean).join(' ');
+function contentToString(content, files) {
+  let s = content || '';
+  if (files && files.length) {
+    const names = files.map(f => f.name).join(', ');
+    if (s) s += ' ';
+    s += `[文件: ${names}]`;
   }
-  return '';
+  return s;
 }
 
 function renderMessages() {
   messagesContainer.innerHTML = '';
   for (const msg of messages) {
-    if (!msg.content) continue;
-    appendMessage(msg.role, msg.content);
+    if (!msg.content && (!msg.files || !msg.files.length)) continue;
+    appendMessage(msg.role, msg.content, msg.files);
   }
 }
 
-function appendMessage(role, content) {
+function appendMessage(role, content, files) {
   const div = document.createElement('div');
   div.className = `message ${role}`;
 
@@ -416,20 +414,28 @@ function appendMessage(role, content) {
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
 
-  if (Array.isArray(content)) {
-    for (const part of content) {
-      if (part.type === 'text') {
-        // 文件上传内容只显示第一行标记，不显示文件全文
-        const firstNewline = part.text.indexOf('\n');
-        const displayText = firstNewline > 0 ? part.text.slice(0, firstNewline) : part.text;
-        const p = document.createElement('div');
-        p.style.whiteSpace = 'pre-wrap';
-        p.textContent = displayText;
-        bubble.appendChild(p);
-      }
-    }
-  } else {
+  // 用户文本
+  if (content) {
     bubble.textContent = content;
+  }
+
+  // 文件卡片
+  if (files && files.length) {
+    const container = document.createElement('div');
+    container.className = 'msg-files';
+    for (const f of files) {
+      const card = document.createElement('div');
+      card.className = 'file-card';
+      const badgeCls = f.text ? 'badge-ok' : 'badge-fail';
+      const badgeText = f.text ? '已解析' : '不支持解析';
+      card.innerHTML = `
+        <span class="file-card-icon">&#128196;</span>
+        <span class="file-card-name">${escHtml(f.name)}</span>
+        <span class="file-card-badge ${badgeCls}">${badgeText}</span>
+      `;
+      container.appendChild(card);
+    }
+    bubble.appendChild(container);
   }
 
   div.appendChild(label);

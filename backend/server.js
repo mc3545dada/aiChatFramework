@@ -2,12 +2,23 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
+const mammoth = require('mammoth');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const CONV_DIR = path.join(__dirname, 'conversations');
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+
+// 确保目录存在
+[CONV_DIR, UPLOAD_DIR].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
+
+const upload = multer({
+  dest: UPLOAD_DIR,
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 // 从 config.json 读取设置
 function loadConfig() {
@@ -59,6 +70,37 @@ app.post('/api/settings', (req, res) => {
 
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf-8');
   res.json({ success: true });
+});
+
+// POST /api/upload — 上传并解析文件
+const TEXT_EXTS = new Set(['.txt','.md','.js','.py','.html','.css','.json','.csv','.xml','.yaml','.yml','.sh','.bat','.log','.env','.ini','.cfg','.conf','.sql','.rs','.go','.java','.ts','.tsx','.jsx','.vue','.php','.rb','.pl','.lua','.zig','.toml']);
+
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: '请选择文件' });
+
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  let text = '';
+
+  try {
+    if (ext === '.docx') {
+      const result = await mammoth.extractRawText({ path: req.file.path });
+      text = result.value.trim();
+    } else if (TEXT_EXTS.has(ext)) {
+      text = fs.readFileSync(req.file.path, 'utf-8').trim();
+    }
+  } catch (err) {
+    text = '';
+  }
+
+  // 清理临时文件
+  fs.unlink(req.file.path, () => {});
+
+  res.json({
+    name: req.file.originalname,
+    text,
+    parsed: !!text,
+    size: req.file.size,
+  });
 });
 
 // POST /api/test — 测试 API 连接

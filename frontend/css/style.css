@@ -290,6 +290,61 @@ header h1 {
   border-bottom-left-radius: 4px;
 }
 
+/* File cards in messages */
+.msg-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f7f8fa;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.message.user .file-card {
+  background: #e6f0ff;
+  border-color: #b8d4ff;
+}
+
+.file-card-icon {
+  font-size: 16px;
+}
+
+.file-card-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+}
+
+.file-card-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #e8e8e8;
+  color: #888;
+  white-space: nowrap;
+}
+
+.file-card-badge.badge-ok {
+  background: #e6ffed;
+  color: #389e0d;
+}
+
+.file-card-badge.badge-fail {
+  background: #fff1f0;
+  color: #cf1322;
+}
+
 .message .role-label {
   font-size: 12px;
   color: #999;
