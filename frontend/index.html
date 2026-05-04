@@ -35,6 +35,16 @@
 
       <footer>
         <div id="file-previews" class="hidden"></div>
+        <div id="think-bar" class="think-bar">
+          <label class="think-toggle">
+            <input type="checkbox" id="think-check" checked>
+            <span>思考</span>
+          </label>
+          <select id="think-effort">
+            <option value="high">high</option>
+            <option value="max">max</option>
+          </select>
+        </div>
         <form id="chat-form">
           <button type="button" id="file-btn" title="上传文件">&#128206;</button>
           <input type="file" id="file-input" multiple hidden accept=".txt,.md,.js,.py,.html,.css,.json,.csv,.xml,.yaml,.yml,.sh,.bat,.log,.env,.ini,.cfg,.conf,.sql,.rs,.go,.java,.ts,.tsx,.jsx,.vue,.php,.rb,.pl,.lua,.zig,.toml,.png,.jpg,.jpeg,.gif,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.zip,.tar,.gz,.7z,.rar">
@@ -56,7 +66,11 @@
         <h2>设置</h2>
         <button id="settings-close">&times;</button>
       </div>
-      <div class="modal-body">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="api">API</button>
+        <button class="tab-btn" data-tab="about">关于</button>
+      </div>
+      <div class="modal-body tab-panel" id="tab-api">
         <label>
           API 地址
           <input id="setting-url" type="text" placeholder="https://api.openai.com">
@@ -75,20 +89,15 @@
           API 密钥
           <input id="setting-key" type="password" placeholder="sk-...">
         </label>
-        <label class="switch-row">
-          <span>思考模式</span>
-          <input id="thinking-toggle" type="checkbox" checked>
-        </label>
-        <label id="effort-label">
-          思考强度
-          <select id="effort-select">
-            <option value="high">high（默认）</option>
-            <option value="max">max（更强）</option>
-          </select>
-        </label>
         <p class="hint">修改后自动保存，重启服务后仍然有效</p>
         <div id="test-result" class="hidden"></div>
         <button id="test-btn" class="btn-test">测试 API 连接</button>
+      </div>
+      <div class="modal-body tab-panel hidden" id="tab-about">
+        <div class="about-content">
+          <p>AI Chat</p>
+          <p class="hint">by mc3545dada</p>
+        </div>
       </div>
       <div class="modal-footer">
         <button id="settings-save" class="btn-primary">保存</button>

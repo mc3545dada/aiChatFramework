@@ -20,9 +20,8 @@ const testResult = document.getElementById('test-result');
 const fetchModelsBtn = document.getElementById('fetch-models-btn');
 const modelSelectWrap = document.getElementById('model-list-wrap');
 const modelSelect = document.getElementById('model-select');
-const thinkingToggle = document.getElementById('thinking-toggle');
-const effortSelect = document.getElementById('effort-select');
-const effortLabel = document.getElementById('effort-label');
+const thinkCheck = document.getElementById('think-check');
+const thinkEffort = document.getElementById('think-effort');
 
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('sidebar');
@@ -210,10 +209,6 @@ async function saveCurrentConv() {
 // ---- 设置功能 ----
 settingsBtn.addEventListener('click', async () => {
   settingsOverlay.classList.remove('hidden');
-  // 从 localStorage 加载思考模式设置
-  thinkingToggle.checked = localStorage.getItem('thinkingEnabled') !== 'false';
-  effortSelect.value = localStorage.getItem('reasoningEffort') || 'high';
-  effortLabel.style.display = thinkingToggle.checked ? '' : 'none';
   try {
     const res = await fetch('/api/settings');
     const data = await res.json();
@@ -223,12 +218,18 @@ settingsBtn.addEventListener('click', async () => {
   } catch {}
 });
 
-thinkingToggle.addEventListener('change', () => {
-  effortLabel.style.display = thinkingToggle.checked ? '' : 'none';
-});
-
 settingsClose.addEventListener('click', () => {
   settingsOverlay.classList.add('hidden');
+});
+
+// 设置页标签切换
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+  });
 });
 
 settingsSave.addEventListener('click', async () => {
@@ -236,9 +237,6 @@ settingsSave.addEventListener('click', async () => {
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
   if (settingKey.value.trim()) body.apiKey = settingKey.value.trim();
-  // 保存思考模式设置到 localStorage
-  localStorage.setItem('thinkingEnabled', thinkingToggle.checked);
-  localStorage.setItem('reasoningEffort', effortSelect.value);
 
   try {
     const res = await fetch('/api/settings', {
@@ -372,7 +370,8 @@ chatForm.addEventListener('submit', async (e) => {
   const assistantIdx = messages.length;
   messages.push({ role: 'assistant', content: '' });
   const assistantBubble = appendMessage('assistant', '……');
-  assistantBubble.style.opacity = '0.5';
+  const assistantText = assistantBubble.querySelector('.assistant-text');
+  if (assistantText) assistantText.style.opacity = '0.5';
 
   try {
     abortController = new AbortController();
@@ -381,8 +380,8 @@ chatForm.addEventListener('submit', async (e) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: apiMessages,
-        thinkingEnabled: localStorage.getItem('thinkingEnabled') !== 'false',
-        reasoningEffort: localStorage.getItem('reasoningEffort') || 'high',
+        thinkingEnabled: thinkCheck.checked,
+        reasoningEffort: thinkEffort.value,
       }),
       signal: abortController.signal,
     });
@@ -410,7 +409,8 @@ chatForm.addEventListener('submit', async (e) => {
         try {
           const parsed = JSON.parse(data);
           if (parsed.error) {
-            assistantBubble.textContent = parsed.error;
+            if (assistantText) assistantText.textContent = parsed.error;
+            else assistantBubble.textContent = parsed.error;
             assistantBubble.parentElement.className = 'message error';
             return;
           }
@@ -425,8 +425,12 @@ chatForm.addEventListener('submit', async (e) => {
 
           if (parsed.content) {
             fullContent += parsed.content;
-            assistantBubble.textContent = fullContent;
-            assistantBubble.style.opacity = '1';
+            if (assistantText) {
+              assistantText.textContent = fullContent;
+              assistantText.style.opacity = '1';
+            } else {
+              assistantBubble.textContent = fullContent;
+            }
             scrollToBottom();
           }
         } catch {}
@@ -438,7 +442,9 @@ chatForm.addEventListener('submit', async (e) => {
 
   } catch (err) {
     if (err.name === 'AbortError') return;
-    assistantBubble.textContent = '请求失败: ' + err.message;
+    const errMsg = '请求失败: ' + err.message;
+    if (assistantText) assistantText.textContent = errMsg;
+    else assistantBubble.textContent = errMsg;
     assistantBubble.parentElement.className = 'message error';
   } finally {
     setLoading(false);
@@ -510,9 +516,14 @@ function appendMessage(role, content, files) {
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
 
-  // 用户文本
-  if (content) {
-    bubble.textContent = content;
+  if (role === 'assistant') {
+    // assistant 用单独的内容容器，避免 textContent 冲掉 reasoning-box
+    const textEl = document.createElement('div');
+    textEl.className = 'assistant-text';
+    if (content) textEl.textContent = content;
+    bubble.appendChild(textEl);
+  } else {
+    if (content) bubble.textContent = content;
   }
 
   // 文件卡片
