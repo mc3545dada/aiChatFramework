@@ -438,6 +438,7 @@ chatForm.addEventListener('submit', async (e) => {
     }
 
     messages[assistantIdx].content = fullContent;
+    if (fullReasoning) messages[assistantIdx].reasoning = fullReasoning;
     scheduleSave();
 
   } catch (err) {
@@ -501,11 +502,11 @@ function renderMessages() {
   messagesContainer.innerHTML = '';
   for (const msg of messages) {
     if (!msg.content && (!msg.files || !msg.files.length)) continue;
-    appendMessage(msg.role, msg.content, msg.files);
+    appendMessage(msg.role, msg.content, msg.files, msg.reasoning);
   }
 }
 
-function appendMessage(role, content, files) {
+function appendMessage(role, content, files, reasoning) {
   const div = document.createElement('div');
   div.className = `message ${role}`;
 
@@ -517,6 +518,28 @@ function appendMessage(role, content, files) {
   bubble.className = 'bubble';
 
   if (role === 'assistant') {
+    // 渲染保存的 reasoning 内容
+    if (reasoning) {
+      const box = document.createElement('div');
+      box.className = 'reasoning-box collapsed';
+
+      const header = document.createElement('div');
+      header.className = 'reasoning-header';
+      header.innerHTML = '<span class="reasoning-toggle">&#9654;</span><span>&#128300; 已思考</span>';
+      header.addEventListener('click', () => {
+        box.classList.toggle('collapsed');
+        header.querySelector('.reasoning-toggle').textContent =
+          box.classList.contains('collapsed') ? '▶' : '▼';
+      });
+
+      const rc = document.createElement('div');
+      rc.className = 'reasoning-content';
+      rc.textContent = reasoning;
+
+      box.appendChild(header);
+      box.appendChild(rc);
+      bubble.appendChild(box);
+    }
     // assistant 用单独的内容容器，避免 textContent 冲掉 reasoning-box
     const textEl = document.createElement('div');
     textEl.className = 'assistant-text';
