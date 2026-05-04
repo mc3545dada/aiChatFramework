@@ -63,7 +63,13 @@
         </label>
         <label>
           模型
-          <input id="setting-model" type="text" placeholder="gpt-3.5-turbo">
+          <div class="model-row">
+            <input id="setting-model" type="text" placeholder="gpt-3.5-turbo">
+            <button id="fetch-models-btn" class="btn-small" title="获取可用模型列表">&#128269;</button>
+          </div>
+          <div id="model-list-wrap" class="hidden">
+            <select id="model-select"></select>
+          </div>
         </label>
         <label>
           API 密钥

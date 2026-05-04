@@ -17,6 +17,9 @@ const settingModel = document.getElementById('setting-model');
 const settingKey = document.getElementById('setting-key');
 const testBtn = document.getElementById('test-btn');
 const testResult = document.getElementById('test-result');
+const fetchModelsBtn = document.getElementById('fetch-models-btn');
+const modelSelectWrap = document.getElementById('model-list-wrap');
+const modelSelect = document.getElementById('model-select');
 
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('sidebar');
@@ -265,6 +268,41 @@ testBtn.addEventListener('click', async () => {
   }
 });
 
+// ---- 获取模型列表 ----
+fetchModelsBtn.addEventListener('click', async () => {
+  fetchModelsBtn.disabled = true;
+  fetchModelsBtn.textContent = '...';
+
+  // 先保存当前输入的配置
+  const body = {};
+  if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
+  if (settingModel.value.trim()) body.model = settingModel.value.trim();
+  if (settingKey.value.trim()) body.apiKey = settingKey.value.trim();
+  if (Object.keys(body).length) {
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+
+  try {
+    const res = await fetch('/api/models');
+    const data = await res.json();
+    if (data.ok && data.models.length) {
+      modelSelect.innerHTML = data.models.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
+      modelSelectWrap.classList.remove('hidden');
+      modelSelect.onchange = () => { settingModel.value = modelSelect.value; };
+      settingModel.value = '';
+    } else {
+      modelSelectWrap.classList.add('hidden');
+      alert(data.msg || '获取模型列表失败');
+    }
+  } catch (err) {
+    modelSelectWrap.classList.add('hidden');
+    alert('请求失败: ' + err.message);
+  } finally {
+    fetchModelsBtn.disabled = false;
+    fetchModelsBtn.innerHTML = '&#128269;';
+  }
+});
+
 // ---- 聊天功能 ----
 userInput.addEventListener('input', () => {
   userInput.style.height = 'auto';
@@ -334,6 +372,7 @@ chatForm.addEventListener('submit', async (e) => {
     const decoder = new TextDecoder();
     let buffer = '';
     let fullContent = '';
+    let fullReasoning = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -356,6 +395,15 @@ chatForm.addEventListener('submit', async (e) => {
             assistantBubble.parentElement.className = 'message error';
             return;
           }
+
+          // DeepSeek-R1 等模型的思考内容
+          const reasoning = parsed.reasoning_content;
+          if (reasoning) {
+            fullReasoning += reasoning;
+            updateReasoningDisplay(assistantBubble, fullReasoning);
+            scrollToBottom();
+          }
+
           if (parsed.content) {
             fullContent += parsed.content;
             assistantBubble.textContent = fullContent;
@@ -383,6 +431,26 @@ function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+// DeepSeek-R1 思考内容展示
+function updateReasoningDisplay(bubble, text) {
+  let el = bubble.querySelector('.reasoning-box');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'reasoning-box';
+    const summary = document.createElement('div');
+    summary.className = 'reasoning-summary';
+    summary.textContent = '&#128300; 思考中...';
+    el.appendChild(summary);
+    const content = document.createElement('div');
+    content.className = 'reasoning-content';
+    content.textContent = text;
+    el.appendChild(content);
+    bubble.prepend(el);
+  } else {
+    el.querySelector('.reasoning-content').textContent = text;
+  }
 }
 
 function contentToString(content, files) {

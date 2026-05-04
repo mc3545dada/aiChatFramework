@@ -95,8 +95,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   // 清理临时文件
   fs.unlink(req.file.path, () => {});
 
+  // 修复 Windows 下 multer 对 UTF-8 文件名的乱码问题
+  const fixedName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
   res.json({
-    name: req.file.originalname,
+    name: fixedName,
     text,
     parsed: !!text,
     size: req.file.size,
@@ -136,6 +139,35 @@ app.post('/api/test', async (req, res) => {
     res.json({ ok: true, msg: `连接成功！响应: ${reply.trim()}` });
   } catch (err) {
     res.json({ ok: false, msg: `请求失败: ${err.message}` });
+  }
+});
+
+// GET /api/models — 获取可用模型列表
+app.get('/api/models', async (req, res) => {
+  const settings = getSettings();
+
+  if (!settings.apiKey) {
+    return res.json({ ok: false, msg: '请先配置 API_KEY', models: [] });
+  }
+
+  try {
+    const response = await fetch(`${settings.apiBaseUrl}/models`, {
+      headers: { 'Authorization': `Bearer ${settings.apiKey}` },
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      return res.json({ ok: false, msg: `API ${response.status}`, models: [] });
+    }
+
+    const data = await response.json();
+    const models = (data.data || [])
+      .map(m => m.id)
+      .filter(id => typeof id === 'string')
+      .sort();
+    res.json({ ok: true, models });
+  } catch (err) {
+    res.json({ ok: false, msg: err.message, models: [] });
   }
 });
 

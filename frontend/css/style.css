@@ -309,6 +309,28 @@ header h1 {
   font-size: 13px;
 }
 
+/* Reasoning/thinking box */
+.reasoning-box {
+  margin-bottom: 12px;
+  border-left: 3px solid #faad14;
+  background: #fffbe6;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.reasoning-summary {
+  font-weight: 600;
+  color: #d48806;
+  margin-bottom: 4px;
+}
+
+.reasoning-content {
+  color: #8c8c8c;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
 .message.user .file-card {
   background: #e6f0ff;
   border-color: #b8d4ff;
@@ -492,6 +514,53 @@ footer {
 
 #settings-close:hover {
   color: #333;
+}
+
+.model-row {
+  display: flex;
+  gap: 6px;
+}
+
+.model-row input {
+  flex: 1;
+}
+
+.btn-small {
+  padding: 4px 10px;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #555;
+}
+
+.btn-small:hover {
+  border-color: #1677ff;
+  color: #1677ff;
+}
+
+#model-list-wrap {
+  margin-top: 6px;
+}
+
+#model-list-wrap.hidden {
+  display: none;
+}
+
+#model-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+  max-height: 200px;
+}
+
+#model-select:focus {
+  border-color: #1677ff;
 }
 
 .modal-body {
