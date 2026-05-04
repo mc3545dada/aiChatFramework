@@ -37,6 +37,12 @@ const ALLOWED_EXTENSIONS = new Set([
   '.png','.jpg','.jpeg','.gif','.webp','.bmp',
   '.pdf','.doc','.docx','.xls','.xlsx','.zip','.tar','.gz','.7z','.rar',
 ]);
+// 可以用 file.text() 提取出可读文本的扩展名
+const TEXT_READABLE = new Set([
+  '.txt','.md','.js','.py','.html','.css','.json','.csv','.xml','.yaml','.yml',
+  '.sh','.bat','.log','.env','.ini','.cfg','.conf','.sql','.rs','.go','.java',
+  '.ts','.tsx','.jsx','.vue','.php','.rb','.pl','.lua','.zig','.toml',
+]);
 
 fileBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
@@ -68,13 +74,16 @@ async function processAttachedFiles() {
   if (attachedFiles.length === 0) return null;
   const parts = [];
   for (const af of attachedFiles) {
-    let content = '';
-    try { content = await af.file.text(); } catch {}
-    if (content) {
-      parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]\n${content}` });
-    } else {
-      parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]` });
+    if (TEXT_READABLE.has(af.type)) {
+      try {
+        const content = await af.file.text();
+        if (content) {
+          parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]\n${content}` });
+          continue;
+        }
+      } catch {}
     }
+    parts.push({ type: 'text', text: `[用户上传了一个文件: ${af.name}]` });
   }
   attachedFiles = [];
   renderFilePreviews();
