@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 echo ========================================
-echo   TinyChat Launcher
+echo   aiChatFramework Launcher
 echo ========================================
 echo.
 
@@ -30,7 +30,7 @@ echo [2/2] Starting server...
 echo.
 
 :: Start server in a new window
-start /MIN "TinyChat" node server.js
+start /MIN "aiChatFramework" node server.js
 
 :: Wait for server to be ready
 echo Waiting for server...

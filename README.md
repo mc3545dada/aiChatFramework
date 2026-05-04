@@ -1,11 +1,11 @@
-# TinyChat
+# aiChatFramework
 
 A lightweight full-stack web chat interface for OpenAI-compatible APIs. Features streaming responses, thinking/reasoning mode, file upload with text extraction, conversation history, and a clean responsive UI.
 
 ## Features
 
 - **Streaming responses** — real-time token-by-token display (SSE)
-- **Thinking / Reasoning mode** — toggle on/off, control effort level (high/max), collapsible reasoning display (DeepSeek R1 / V4)
+- **Thinking / Reasoning mode** — toggle on/off, control effort level (high/max), collapsible reasoning display
 - **File upload** — upload .docx, .txt, code files, images and more; backend extracts text for .docx and plain text files
 - **Conversation history** — auto-saved, switch between conversations, delete old ones
 - **Model selection** — fetch available models from your API provider with one click
@@ -36,7 +36,7 @@ Or double-click `start.bat` on Windows (auto-creates .env from template on first
 ## Project Structure
 
 ```
-TinyChat/
+aiChatFramework/
 ├── backend/
 │   ├── server.js          # Express server + API proxy + file parsing
 │   ├── package.json

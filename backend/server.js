@@ -371,7 +371,7 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   const s = getSettings();
-  console.log(`TinyChat started: http://localhost:${PORT}`);
+  console.log(`aiChatFramework started: http://localhost:${PORT}`);
   console.log(`   API: ${s.apiBaseUrl}`);
   console.log(`   Model: ${s.model}`);
   console.log(`   API Key: ${s.apiKey ? 'configured' : 'NOT configured'}`);
