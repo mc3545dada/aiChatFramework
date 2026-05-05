@@ -374,6 +374,15 @@ footer { border-top: 1px solid #e8e8e8; background: #fff; transition: background
   color: #e01e5a; font-size: 13px;
 }
 .assistant-text pre code { background: none; padding: 0; color: inherit; }
+/* Code syntax highlight */
+.hl-kw { color: #c678dd; }  /* keyword purple */
+.hl-str { color: #98c379; } /* string green */
+.hl-cm { color: #5c6370; font-style: italic; } /* comment gray */
+.hl-num { color: #d19a66; } /* number orange */
+body.bg-dark .hl-kw { color: #c9a0ff; }
+body.bg-dark .hl-str { color: #a6e22e; }
+body.bg-dark .hl-cm { color: #6c7086; }
+body.bg-dark .hl-num { color: #f8b500; }
 .assistant-text ul, .assistant-text ol { padding-left: 22px; margin: 6px 0; }
 .assistant-text li { margin: 2px 0; }
 .assistant-text blockquote {
