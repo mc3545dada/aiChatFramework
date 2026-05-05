@@ -108,11 +108,6 @@ let attachedFiles = [];
 let isStreaming = false;
 let scrollLocked = false; // 自动滚屏锁定
 
-// ---- 自动滚屏锁定 ----
-chatContainer.addEventListener('scroll', () => {
-  const { scrollTop, scrollHeight, clientHeight } = chatContainer;
-  scrollLocked = scrollHeight - scrollTop - clientHeight > 80;
-});
 function scrollToBottom() {
   if (!scrollLocked) chatContainer.scrollTop = chatContainer.scrollHeight;
 }
@@ -565,8 +560,12 @@ function appendMessage(role, content, files, reasoning, ts) {
     try { await navigator.clipboard.writeText(content||''); cb.innerHTML='&#10003;'; cb.style.color='#52c41a'; setTimeout(()=>{cb.innerHTML='&#128203;';cb.style.color='';},1500); } catch {}
   });
   act.appendChild(cb);
-  // 用户消息：删除
+  // 用户消息：编辑 + 删除
   if (role==='user' && content) {
+    const eb = document.createElement('button'); eb.className='action-btn'; eb.title=t('edit');
+    eb.innerHTML='&#9998;';
+    eb.addEventListener('click', e => { e.stopPropagation(); editMessage(div, content); });
+    act.appendChild(eb);
     const db = document.createElement('button'); db.className='action-btn'; db.title=t('delete_msg');
     db.innerHTML='&#128465;';
     db.addEventListener('click', e => { e.stopPropagation(); const idx = Array.from(messagesContainer.children).indexOf(div); if (idx>=0) deleteMessage(idx); });
@@ -588,6 +587,53 @@ function appendMessage(role, content, files, reasoning, ts) {
 }
 
 function setLoading(active) { loading.classList.toggle('hidden',!active); fileBtn.disabled=active; }
+
+// ---- 编辑消息 ----
+function editMessage(msgDiv, oldContent) {
+  const bubble = msgDiv.querySelector('.bubble');
+  const userText = bubble.querySelector('.user-text');
+  if (!userText) return;
+  const textarea = document.createElement('textarea');
+  textarea.className = 'edit-textarea';
+  textarea.value = oldContent;
+  userText.replaceWith(textarea);
+  textarea.focus(); textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+  function saveEdit() {
+    const newContent = textarea.value.trim();
+    if (newContent && newContent !== oldContent) {
+      const idx = Array.from(messagesContainer.children).indexOf(msgDiv);
+      if (idx >= 0) {
+        messages[idx].content = newContent;
+        renderMessages();
+        scheduleSave();
+      }
+    } else {
+      // 恢复原文
+      const te = document.createElement('div'); te.className = 'user-text'; te.textContent = oldContent;
+      textarea.replaceWith(te);
+    }
+  }
+
+  textarea.addEventListener('blur', saveEdit);
+  textarea.addEventListener('keydown', e2 => {
+    if (e2.key === 'Enter' && !e2.shiftKey) { e2.preventDefault(); textarea.blur(); }
+    if (e2.key === 'Escape') { textarea.value = oldContent; textarea.blur(); }
+  });
+}
+
+// ---- 滚动到底部按钮 ----
+const scrollBtn = document.getElementById('scroll-bottom-btn');
+chatContainer.addEventListener('scroll', () => {
+  const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+  scrollLocked = scrollHeight - scrollTop - clientHeight > 80;
+  scrollBtn.classList.toggle('hidden', !scrollLocked);
+});
+scrollBtn.addEventListener('click', () => {
+  scrollLocked = false;
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+  scrollBtn.classList.add('hidden');
+});
 
 // ---- 初始化 ----
 loadConvList();

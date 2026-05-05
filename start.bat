@@ -39,8 +39,4 @@ timeout /t 3
 :: Open browser
 start http://localhost:3001
 
-echo.
-echo Server: http://localhost:3001
-echo Close the server window to stop.
-echo.
-pause
+exit
