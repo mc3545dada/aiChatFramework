@@ -319,8 +319,9 @@ footer { border-top: 1px solid #e8e8e8; background: #fff; transition: background
 /* ===== Settings Modal ===== */
 #settings-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.4);
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: flex-start; justify-content: center;
   z-index: 100; animation: overlayIn 0.2s ease;
+  padding: 10vh 0;
 }
 @keyframes overlayIn { from { opacity:0; } to { opacity:1; } }
 #settings-overlay.hidden { display: none; }
@@ -329,6 +330,8 @@ footer { border-top: 1px solid #e8e8e8; background: #fff; transition: background
   background: #fff; border-radius: 14px; width: 90%; max-width: 440px;
   box-shadow: 0 12px 48px rgba(0,0,0,.18);
   overflow: hidden; animation: modalIn 0.25s ease;
+  display: flex; flex-direction: column;
+  max-height: 80vh;
 }
 @keyframes modalIn {
   from { opacity:0; transform:translateY(-20px) scale(.97); }
@@ -358,7 +361,7 @@ footer { border-top: 1px solid #e8e8e8; background: #fff; transition: background
 .tab-panel { display: flex; flex-direction: column; gap: 16px; }
 .tab-panel.hidden { display: none; }
 
-.modal-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.modal-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
 
 .modal-body label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 500; color: #555; }
 .modal-body label input,
