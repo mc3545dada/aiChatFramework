@@ -106,7 +106,8 @@ let abortController = null;
 let saveTimer = null;
 let attachedFiles = [];
 let isStreaming = false;
-let scrollLocked = false; // 自动滚屏锁定
+let scrollLocked = false;
+let renamePending = false; // 等待 AI 回复后重命名
 
 function scrollToBottom() {
   if (!scrollLocked) chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -335,13 +336,11 @@ async function saveCurrentConv() {
   const filtered = messages.filter(m=>m.content);
   if (!filtered.length) return;
   const savedId = currentConvId;
-  const wasNew = !savedId && filtered.filter(m=>m.role==='assistant').length > 0;
   try {
     const data = await (await fetch('/api/conversations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:savedId,messages:filtered})})).json();
     if (data.id && currentConvId===savedId) currentConvId = data.id;
     loadConvList();
-    // 新对话保存完成后自动重命名
-    if (wasNew && data.id) autoRename();
+    if (renamePending && data.id) { renamePending = false; autoRename(); }
   } catch {}
 }
 
@@ -432,7 +431,7 @@ chatForm.addEventListener('submit', async e => {
         } catch {}
       }
     }
-    messages[asIdx].content=fc; if (fr) messages[asIdx].reasoning=fr; scheduleSave();
+    messages[asIdx].content=fc; if (fr) messages[asIdx].reasoning=fr; renamePending = true; scheduleSave();
   } catch(err) {
     if (err.name==='AbortError') return;
     const em = t('error_prefix')+err.message;
