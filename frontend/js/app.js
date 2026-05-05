@@ -355,7 +355,7 @@ settingsBtn.addEventListener('click', async () => {
   settingsOverlay.classList.remove('hidden');
   settingSystem.value = localStorage.getItem('systemPrompt')||'';
   renameToggle.checked = localStorage.getItem('autoRename') !== 'false';
-  try { const s=await(await fetch('/api/settings')).json(); settingUrl.value=s.apiBaseUrl||''; settingModel.value=s.model||''; settingKey.placeholder=s.hasKey?t('api_key')+' (已设置)':'sk-...'; } catch {}
+  try { const s=await(await fetch('/api/settings')).json(); settingUrl.value=s.apiBaseUrl||''; settingModel.value=s.model||''; settingKey.value=s.apiKey||''; settingKey.placeholder=s.apiKey?'':'sk-...'; } catch {}
 });
 settingsClose.addEventListener('click', () => settingsOverlay.classList.add('hidden'));
 document.querySelectorAll('.tab-btn').forEach(btn => { btn.addEventListener('click',()=>{ document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.tab-panel').forEach(p=>p.classList.add('hidden')); document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden'); }); });
