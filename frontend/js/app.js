@@ -494,17 +494,6 @@ async function doSubmit(text,files) {
   } finally { setLoading(false); hideStopBtn(); isStreaming=false; abortController=null; }
 }
 
-// ---- 复制 ----
-function addCopyBtn(bubble, content) {
-  const btn = document.createElement('button'); btn.className='copy-btn'; btn.title=t('copy');
-  btn.innerHTML='&#128203;';
-  btn.addEventListener('click', async e => {
-    e.stopPropagation();
-    try { await navigator.clipboard.writeText(content); btn.innerHTML='&#10003;'; btn.style.color='#52c41a'; setTimeout(()=>{btn.innerHTML='&#128203;';btn.style.color='';},1500); } catch {}
-  });
-  bubble.appendChild(btn);
-}
-
 // ---- 工具函数 ----
 function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function updateReasoningDisplay(bubble, text) {
@@ -555,7 +544,7 @@ function appendMessage(role, content, files, reasoning, ts) {
     }
     const te=document.createElement('div'); te.className='assistant-text';
     if (content) te.innerHTML=mdRender(content);
-    bubble.appendChild(te); addCopyBtn(bubble,content||'');
+    bubble.appendChild(te);
   } else {
     if (content) { const te=document.createElement('div'); te.className='user-text'; te.textContent=content; bubble.appendChild(te); }
     if (files&&files.length) {
@@ -563,27 +552,36 @@ function appendMessage(role, content, files, reasoning, ts) {
       for (const f of files) { const card=document.createElement('div'); card.className='file-card'; card.innerHTML=`<span class="file-card-icon">&#128196;</span><span class="file-card-name">${escHtml(f.name)}</span><span class="file-card-badge ${f.text?'badge-ok':'badge-fail'}">${f.text?t('parsed'):t('not_supported')}</span>`; c.appendChild(card); }
       bubble.appendChild(c);
     }
-    // 用户消息：删除按钮
-    const delBtn = document.createElement('button'); delBtn.className='msg-del-btn'; delBtn.title=t('delete_msg');
-    delBtn.innerHTML='&#128465;';
-    delBtn.addEventListener('click', e => { e.stopPropagation(); const idx = Array.from(messagesContainer.children).indexOf(div); if (idx>=0) deleteMessage(idx); });
-    bubble.appendChild(delBtn);
-
-    addCopyBtn(bubble,content||'');
   }
 
   div.appendChild(label); div.appendChild(bubble);
 
+  // 操作栏（所有消息都有）
+  const act = document.createElement('div'); act.className='msg-actions';
+  // 复制
+  const cb = document.createElement('button'); cb.className='action-btn'; cb.title=t('copy');
+  cb.innerHTML='&#128203;';
+  cb.addEventListener('click', async e => { e.stopPropagation();
+    try { await navigator.clipboard.writeText(content||''); cb.innerHTML='&#10003;'; cb.style.color='#52c41a'; setTimeout(()=>{cb.innerHTML='&#128203;';cb.style.color='';},1500); } catch {}
+  });
+  act.appendChild(cb);
+  // 用户消息：删除
+  if (role==='user' && content) {
+    const db = document.createElement('button'); db.className='action-btn'; db.title=t('delete_msg');
+    db.innerHTML='&#128465;';
+    db.addEventListener('click', e => { e.stopPropagation(); const idx = Array.from(messagesContainer.children).indexOf(div); if (idx>=0) deleteMessage(idx); });
+    act.appendChild(db);
+  }
+  // AI 消息：重新生成 + token
   if (role==='assistant' && content) {
-    const act=document.createElement('div'); act.className='msg-actions';
     const rb=document.createElement('button'); rb.className='action-btn'; rb.title=t('regenerate'); rb.innerHTML='&#8635;';
     rb.addEventListener('click',e=>{e.stopPropagation();regenerateLast();});
     act.appendChild(rb);
     const tk=document.createElement('span'); tk.className='token-count';
     tk.textContent=t('token_label',{n:Math.max(1,Math.round(content.length/4))});
     act.appendChild(tk);
-    div.appendChild(act);
   }
+  div.appendChild(act);
 
   messagesContainer.appendChild(div); scrollToBottom();
   return bubble;
