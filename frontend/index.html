@@ -74,6 +74,7 @@
       </div>
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="api">API</button>
+        <button class="tab-btn" data-tab="model" data-i18n="model_settings">模型设置</button>
         <button class="tab-btn" data-tab="appearance" data-i18n="appearance">外观</button>
         <button class="tab-btn" data-tab="about" data-i18n="about">关于</button>
       </div>
@@ -93,10 +94,14 @@
         <label><span data-i18n="api_key">API 密钥</span>
           <input id="setting-key" type="password" placeholder="sk-...">
         </label>
+        <p class="hint" data-i18n="settings_hint">修改后自动保存，重启服务后仍然有效</p>
+        <div id="test-result" class="hidden"></div>
+        <button id="test-btn" class="btn-test" data-i18n="test_btn">测试 API 连接</button>
+      </div>
+      <div class="modal-body tab-panel hidden" id="tab-model">
         <label><span data-i18n="system_prompt">系统提示词</span>
           <textarea id="setting-system" rows="3" placeholder="选填：设定 AI 的角色和行为"></textarea>
         </label>
-        <p class="hint" data-i18n="settings_hint">修改后自动保存，重启服务后仍然有效</p>
         <div class="param-row">
           <label>Temperature</label>
           <div class="slider-row">
@@ -111,8 +116,6 @@
             <span id="topp-val" class="param-val">1.00</span>
           </div>
         </div>
-        <div id="test-result" class="hidden"></div>
-        <button id="test-btn" class="btn-test" data-i18n="test_btn">测试 API 连接</button>
       </div>
       <div class="modal-body tab-panel hidden" id="tab-appearance">
         <label data-i18n="theme">主题背景</label>

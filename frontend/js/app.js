@@ -3,7 +3,7 @@ const LANG = {
   zh: {
     think:'思考', send:'发送', stop:'停止', settings:'设置', save:'保存',
     appearance:'外观', about:'关于', api_url:'API 地址', model:'模型',
-    api_key:'API 密钥', system_prompt:'系统提示词', settings_hint:'修改后自动保存，重启服务后仍然有效',
+    api_key:'API 密钥', system_prompt:'系统提示词', model_settings:'模型设置', settings_hint:'修改后自动保存，重启服务后仍然有效',
     test_btn:'测试 API 连接', theme:'主题背景', language:'语言',
     light:'明亮', dark:'暗色', warm:'暖色',
     gradient_blue:'渐变蓝', gradient_green:'渐变绿', gradient_sunset:'日落',
@@ -22,7 +22,7 @@ const LANG = {
   en: {
     think:'Think', send:'Send', stop:'Stop', settings:'Settings', save:'Save',
     appearance:'Appearance', about:'About', api_url:'API URL', model:'Model',
-    api_key:'API Key', system_prompt:'System Prompt', settings_hint:'Auto-saved. Persists after restart.',
+    api_key:'API Key', system_prompt:'System Prompt', model_settings:'Model', settings_hint:'Auto-saved. Persists after restart.',
     test_btn:'Test API Connection', theme:'Background', language:'Language',
     light:'Light', dark:'Dark', warm:'Warm',
     gradient_blue:'Blue Gradient', gradient_green:'Green Gradient', gradient_sunset:'Sunset',
