@@ -193,7 +193,7 @@ app.post('/api/rename', async (req, res) => {
       body: JSON.stringify({
         model: settings.model,
         messages: [
-          { role: 'user', content: '为这段对话生成一个简短的标题（不超过6个字），直接返回标题不要解释不要标点：' + text },
+          { role: 'user', content: '为这段对话生成一个简短的标题（不超过9个字），直接返回标题不要解释不要标点：' + text },
         ],
         stream: false,
         max_tokens: 100,

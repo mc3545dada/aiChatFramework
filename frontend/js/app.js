@@ -94,6 +94,7 @@ const toppVal = document.getElementById('topp-val');
 const exportBtn = document.getElementById('export-btn');
 const searchInput = document.getElementById('search-input');
 const langSelect = document.getElementById('lang-select');
+const renameToggle = document.getElementById('rename-toggle');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('sidebar');
 const convList = document.getElementById('conv-list');
@@ -340,7 +341,7 @@ async function saveCurrentConv() {
     const data = await (await fetch('/api/conversations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:savedId,messages:filtered})})).json();
     if (data.id && currentConvId===savedId) currentConvId = data.id;
     loadConvList();
-    if (renamePending && data.id) { renamePending = false; autoRename(); }
+    if (renamePending && data.id && localStorage.getItem('autoRename') !== 'false') { renamePending = false; autoRename(); }
   } catch {}
 }
 
@@ -348,6 +349,7 @@ async function saveCurrentConv() {
 settingsBtn.addEventListener('click', async () => {
   settingsOverlay.classList.remove('hidden');
   settingSystem.value = localStorage.getItem('systemPrompt')||'';
+  renameToggle.checked = localStorage.getItem('autoRename') !== 'false';
   try { const s=await(await fetch('/api/settings')).json(); settingUrl.value=s.apiBaseUrl||''; settingModel.value=s.model||''; settingKey.placeholder=s.hasKey?t('api_key')+' (已设置)':'sk-...'; } catch {}
 });
 settingsClose.addEventListener('click', () => settingsOverlay.classList.add('hidden'));
@@ -367,6 +369,7 @@ function loadParams() { settingTemp.value=localStorage.getItem('temperature')||'
 loadParams();
 settingTemp.addEventListener('input',()=>{tempVal.textContent=parseFloat(settingTemp.value).toFixed(1);localStorage.setItem('temperature',settingTemp.value);});
 settingTopp.addEventListener('input',()=>{toppVal.textContent=parseFloat(settingTopp.value).toFixed(2);localStorage.setItem('top_p',settingTopp.value);});
+renameToggle.addEventListener('change',()=>localStorage.setItem('autoRename',renameToggle.checked));
 testBtn.addEventListener('click', async () => {
   testResult.className='test-msg'; testResult.textContent='...';
   const body={}; if (settingUrl.value.trim()) body.apiBaseUrl=settingUrl.value.trim(); if (settingModel.value.trim()) body.model=settingModel.value.trim(); if (settingKey.value.trim()) body.apiKey=settingKey.value.trim();
