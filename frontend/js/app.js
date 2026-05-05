@@ -493,12 +493,7 @@ chatForm.addEventListener('submit', async e => {
   const userMsg = { role:'user', content:text, files:fileResults, ts:Date.now() };
   messages.push(userMsg);
   // 用户消息单独渲染纯文本（图片用卡片展示）
-  if (fileResults.some(f => f.type === 'image')) {
-    // 有图片时：文本 + 图片预览
-    appendMessage('user', text, fileResults.map(f => ({ name: f.name, type: 'image' })));
-  } else {
-    appendMessage('user', text, fileResults);
-  }
+  appendMessage('user', text, fileResults);
   userInput.value=''; userInput.style.height='auto';
   scheduleSave(); setLoading(true); showStopBtn();
   const sp = localStorage.getItem('systemPrompt')||'';
