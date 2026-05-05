@@ -335,10 +335,13 @@ async function saveCurrentConv() {
   const filtered = messages.filter(m=>m.content);
   if (!filtered.length) return;
   const savedId = currentConvId;
+  const wasNew = !savedId && filtered.filter(m=>m.role==='assistant').length > 0;
   try {
     const data = await (await fetch('/api/conversations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:savedId,messages:filtered})})).json();
     if (data.id && currentConvId===savedId) currentConvId = data.id;
     loadConvList();
+    // 新对话保存完成后自动重命名
+    if (wasNew && data.id) autoRename();
   } catch {}
 }
 
@@ -430,8 +433,6 @@ chatForm.addEventListener('submit', async e => {
       }
     }
     messages[asIdx].content=fc; if (fr) messages[asIdx].reasoning=fr; scheduleSave();
-    // 新对话自动重命名（等保存完成后执行）
-    if (!currentConvId || messages.length <= 2) setTimeout(autoRename, 2000);
   } catch(err) {
     if (err.name==='AbortError') return;
     const em = t('error_prefix')+err.message;
