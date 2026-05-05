@@ -200,10 +200,11 @@ app.post('/api/chat', async (req, res) => {
         model: model || settings.model,
         messages,
         stream: true,
-        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
         ...(thinkingEnabled !== undefined ? {
-          extra_body: { thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' } }
+          thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' }
         } : {}),
+        // reasoning_effort 只有思考开启时才有效
+        ...(thinkingEnabled !== false && reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
         ...(temperature !== undefined ? { temperature } : {}),
         ...(top_p !== undefined ? { top_p } : {}),
       }),

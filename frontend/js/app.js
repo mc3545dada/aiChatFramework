@@ -369,9 +369,9 @@ userInput.addEventListener('keydown', e => { if (e.key==='Enter'&&!e.shiftKey) {
 
 chatForm.addEventListener('submit', async e => {
   e.preventDefault();
+  if (isStreaming) { stopStreaming(); return; }
   const text = userInput.value.trim();
   if (!text && !attachedFiles.length) return;
-  if (isStreaming) { stopStreaming(); return; }
   const fileResults = await uploadFiles();
   const userMsg = { role:'user', content:text, files:fileResults, ts:Date.now() };
   messages.push(userMsg); appendMessage('user',text,fileResults);
