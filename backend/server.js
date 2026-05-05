@@ -256,12 +256,54 @@ app.post('/api/chat', async (req, res) => {
       }),
     });
 
+    if (!response.ok && response.status === 400) {
+      const errorText = await response.text();
+      if (errorText.includes('image_url')) {
+        const plain = messages.map(m => {
+          if (typeof m.content === 'string') return m;
+          if (Array.isArray(m.content)) {
+            const txt = m.content.filter(p => p.type === 'text').map(p => p.text).join('\n');
+            return { ...m, content: txt || '' };
+          }
+          return m;
+        });
+        const retry = await fetch(`${settings.apiBaseUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.apiKey}` },
+          body: JSON.stringify({
+            model: model || settings.model, messages: plain, stream: true,
+            ...(thinkingEnabled !== undefined ? { thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' } } : {}),
+            ...(thinkingEnabled !== false && reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+            ...(temperature !== undefined ? { temperature } : {}),
+            ...(top_p !== undefined ? { top_p } : {}),
+          }),
+        });
+        if (retry.ok) {
+          const rdr = retry.body.getReader(); const dec = new TextDecoder(); let buf = '';
+          while (true) {
+            const { done, value } = await rdr.read(); if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const lines = buf.split('\n'); buf = lines.pop() || '';
+            for (const line of lines) {
+              const t = line.trim(); if (!t.startsWith('data: ')) continue;
+              const d = t.slice(6); if (d === '[DONE]') continue;
+              try {
+                const p = JSON.parse(d); const ch = p.choices?.[0]?.delta;
+                if (ch?.reasoning_content) res.write(`data: ${JSON.stringify({ reasoning_content: ch.reasoning_content })}\n\n`);
+                if (ch?.content) res.write(`data: ${JSON.stringify({ content: ch.content })}\n\n`);
+              } catch {}
+            }
+          }
+          res.write('data: [DONE]\n\n'); res.end(); return;
+        }
+      }
+      res.write(`data: ${JSON.stringify({ error: `API 错误 (${response.status}): ${errorText}` })}\n\n`);
+      res.write('data: [DONE]\n\n'); res.end(); return;
+    }
     if (!response.ok) {
       const errorText = await response.text();
       res.write(`data: ${JSON.stringify({ error: `API 错误 (${response.status}): ${errorText}` })}\n\n`);
-      res.write('data: [DONE]\n\n');
-      res.end();
-      return;
+      res.write('data: [DONE]\n\n'); res.end(); return;
     }
 
     const reader = response.body.getReader();
