@@ -410,7 +410,7 @@ presetSaveBtn.addEventListener('click', () => {
   presetSelect.value = presets.length - 1;
 });
 
-presetLoadBtn.addEventListener('click', () => {
+presetLoadBtn.addEventListener('click', async () => {
   const idx = parseInt(presetSelect.value);
   if (isNaN(idx)) return;
   const presets = getPresets();
@@ -419,6 +419,12 @@ presetLoadBtn.addEventListener('click', () => {
   if (p.apiBaseUrl) settingUrl.value = p.apiBaseUrl;
   if (p.model) settingModel.value = p.model;
   if (p.apiKey) settingKey.value = p.apiKey;
+  // 自动保存到后端
+  const body = {};
+  if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
+  if (settingModel.value.trim()) body.model = settingModel.value.trim();
+  if (settingKey.value.trim()) body.apiKey = settingKey.value.trim();
+  try { await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); } catch {}
 });
 
 presetDelBtn.addEventListener('click', () => {
