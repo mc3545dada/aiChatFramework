@@ -192,7 +192,7 @@ body.bg-dark #export-btn:hover { background: #1a1a3e; color: #58a6ff; }
 
 /* Message delete button */
 .msg-del-btn {
-  position: absolute; bottom: 6px; right: 6px;
+  position: absolute; bottom: 6px; left: 6px;
   background: rgba(255,255,255,.85); border: 1px solid #e0e0e0;
   border-radius: 6px; padding: 3px 7px; font-size: 12px;
   cursor: pointer; opacity: 0; transition: opacity 0.2s;
@@ -204,10 +204,14 @@ body.bg-dark .msg-del-btn { background: rgba(30,30,50,.85); border-color: #2a2a4
 body.bg-dark .msg-del-btn:hover { border-color: #ff4d4f; color: #ff4d4f; }
 
 /* Conv pin & title edit */
-.conv-pin {
+.conv-pin, .conv-rename {
   background: none; border: none; cursor: pointer; font-size: 13px;
   padding: 2px; color: #bbb; transition: color 0.15s; visibility: hidden;
 }
+.conv-item:hover .conv-pin,
+.conv-item:hover .conv-rename { visibility: visible; }
+.conv-pin:hover { color: #faad14 !important; }
+.conv-rename:hover { color: #1677ff !important; }
 .conv-item:hover .conv-pin { visibility: visible; }
 .conv-item.pinned .conv-pin { visibility: visible; }
 .conv-item.pinned .conv-title { font-weight: 600; }

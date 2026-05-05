@@ -127,28 +127,46 @@ function relTime(ts) {
 }
 
 // ---- Markdown + 代码高亮 ----
+const HL_LANGS = {
+  js:['const','let','var','function','return','if','else','for','while','do','switch','case','break','continue','class','import','export','default','async','await','try','catch','throw','new','this','null','undefined','true','false','typeof','instanceof','console','log','error'],
+  ts:['const','let','var','function','return','if','else','for','while','class','import','export','async','await','type','interface','enum','implements','extends','null','undefined','true','false'],
+  py:['def','return','if','else','elif','for','while','import','from','class','try','except','finally','with','as','in','not','and','or','True','False','None','print','self','raise','yield','lambda','pass','break','continue'],
+  cpp:['int','float','double','char','bool','void','auto','const','static','class','struct','enum','if','else','for','while','do','switch','case','break','continue','return','new','delete','true','false','nullptr','include','define','using','namespace','template','typename','public','private','protected','virtual','override','throw','try','catch'],
+  java:['public','private','protected','static','final','class','interface','extends','implements','void','int','float','double','boolean','char','String','if','else','for','while','do','switch','case','break','continue','return','new','try','catch','throw','throws','import','package','null','true','false','this','super'],
+  go:['func','return','if','else','for','range','switch','case','break','continue','go','defer','select','chan','map','struct','interface','type','package','import','var','const','nil','true','false','make','append','len','cap','error'],
+  rs:['fn','let','mut','const','if','else','for','while','loop','match','return','break','continue','struct','enum','impl','trait','use','mod','pub','self','super','true','false','Some','None','Ok','Err','as','in','ref','move','async','await'],
+  sh:['if','then','else','elif','fi','for','while','do','done','case','esac','return','exit','export','local','function','echo','source'],
+};
+
 function highlightCode(code, lang) {
-  const kw = { js:['const','let','var','function','return','if','else','for','while','class','import','export','async','await','try','catch','throw','new','this','null','undefined','true','false','typeof','console'],
-    py:['def','return','if','else','elif','for','while','import','from','class','try','except','finally','with','as','in','not','and','or','True','False','None','print','self'],
-    html:[], css:[] };
-  const keys = kw[lang] || [];
-  if (!keys.length && !['js','py','html','css'].includes(lang)) return code;
+  const keywords = HL_LANGS[lang] || [];
   let h = escHtml(code);
-  if (keys.length) {
-    const pat = new RegExp('\\b(' + keys.join('|') + ')\\b', 'g');
+  if (keywords.length) {
+    const pat = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'g');
     h = h.replace(pat, '<span class="hl-kw">$1</span>');
   }
-  h = h.replace(/(\/\/[^\n]*)/g, '<span class="hl-cm">$1</span>');
-  h = h.replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")/g, '<span class="hl-str">$1</span>');
+  h = h.replace(/(\/\/[^\n]*|#.*)/g, '<span class="hl-cm">$1</span>');
+  h = h.replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)/g, '<span class="hl-str">$1</span>');
   h = h.replace(/(\b\d+\.?\d*\b)/g, '<span class="hl-num">$1</span>');
   return h;
 }
 
 function mdRender(text) {
   if (!text) return '';
-  let h = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, l, c) =>
-    `<pre><code class="lang-${l||''}">${highlightCode(c.trim(),l)}</code></pre>`);
+  // 先提取代码块（原始文本），避免转义破坏代码
+  const codeBlocks = [];
+  const raw = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const i = codeBlocks.length;
+    codeBlocks.push({ lang, code: code.trim() });
+    return `\x00CODE${i}\x00`;
+  });
+  // 转义非代码部分
+  let h = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // 插回高亮后的代码块
+  h = h.replace(/\x00CODE(\d+)\x00/g, (_, i) => {
+    const b = codeBlocks[parseInt(i)];
+    return `<pre><code class="lang-${b.lang||''}">${highlightCode(b.code, b.lang)}</code></pre>`;
+  });
   h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
   h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>').replace(/^## (.+)$/gm, '<h2>$1</h2>').replace(/^# (.+)$/gm, '<h1>$1</h1>');
   h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/~~(.+?)~~/g,'<del>$1</del>');
@@ -244,9 +262,10 @@ async function loadConvList() {
       const item = document.createElement('div');
       item.className = 'conv-item' + (conv.id===currentConvId?' active':'') + (isPinned?' pinned':'');
       item.innerHTML = `<span class="conv-title">${escHtml(conv.title||t('conv_title_new'))}</span>
+        <button class="conv-rename" data-id="${conv.id}" title="${t('edit')}">&#9998;</button>
         <button class="conv-pin" data-id="${conv.id}">${isPinned?'&#128205;':'&#128204;'}</button>
         <button class="conv-del" data-id="${conv.id}">&times;</button>`;
-      item.addEventListener('click', e => { if (e.target.closest('.conv-del')||e.target.closest('.conv-pin')) return; switchConv(conv.id); });
+      item.addEventListener('click', e => { if (e.target.closest('.conv-del')||e.target.closest('.conv-pin')||e.target.closest('.conv-rename')) return; switchConv(conv.id); });
       item.querySelector('.conv-del').addEventListener('click', async e => { e.stopPropagation(); await deleteConv(conv.id); });
       item.querySelector('.conv-pin').addEventListener('click', e => {
         e.stopPropagation();
@@ -255,10 +274,10 @@ async function loadConvList() {
         else { p.push(conv.id); setPinned(p); }
         loadConvList();
       });
-      // 双击标题编辑
-      item.querySelector('.conv-title').addEventListener('dblclick', e => {
+      // 点击编辑图标重命名
+      item.querySelector('.conv-rename').addEventListener('click', e => {
         e.stopPropagation();
-        const span = e.target;
+        const span = item.querySelector('.conv-title');
         const old = span.textContent;
         const inp = document.createElement('input');
         inp.className = 'title-edit'; inp.value = old;
