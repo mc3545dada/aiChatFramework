@@ -58,7 +58,7 @@ aiChatFramework/
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/chat` | Streaming chat (SSE) with thinking & model params |
-| GET | `/api/settings` | Get current API settings (includes key) |
+| GET | `/api/settings` | Get current API settings (returns hasKey, never exposes key) |
 | POST | `/api/settings` | Save API settings |
 | POST | `/api/test` | Test API connection |
 | GET | `/api/models` | List available models |
