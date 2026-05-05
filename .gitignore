@@ -3,3 +3,4 @@ backend/.env
 backend/config.json
 backend/conversations/
 backend/uploads/
+*.traineddata

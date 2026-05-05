@@ -180,6 +180,10 @@ body.bg-dark #export-btn:hover { background: #1a1a3e; color: #58a6ff; }
 .scroll-bottom.hidden { opacity: 0; pointer-events: none; }
 body.bg-dark .scroll-bottom { background: #58a6ff; box-shadow: 0 2px 8px rgba(88,166,255,.3); }
 
+/* Notice / warning */
+.notice { padding: 6px 10px; background: #fff7e6; border: 1px solid #ffd591; border-radius: 6px; font-size: 12px; color: #d46b08; margin-bottom: 8px; }
+body.bg-dark .notice { background: #2a1f0a; border-color: #594214; color: #ffa940; }
+
 /* Edit textarea */
 .edit-textarea {
   width: 100%; padding: 8px; border: 2px solid #1677ff;

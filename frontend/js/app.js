@@ -525,6 +525,7 @@ chatForm.addEventListener('submit', async e => {
         const t = line.trim(); if (!t.startsWith('data: ')) continue;
         const d = t.slice(6); if (d==='[DONE]') continue;
         try { const p = JSON.parse(d);
+          if (p.notice) { if (at) { const n=document.createElement('div'); n.className='notice'; n.textContent=p.notice; at.parentNode.insertBefore(n,at); } continue; }
           if (p.error) { (at||ab).textContent=p.error; ab.parentElement.className='message error'; isStreaming=false; return; }
           if (p.reasoning_content) { fr+=p.reasoning_content; messages[asIdx].reasoning=fr; updateReasoningDisplay(ab,fr); scrollToBottom(); }
           if (p.content) { fc+=p.content; messages[asIdx].content=fc; if (at) { at.innerHTML=mdRender(fc); at.style.opacity='1'; } else ab.innerHTML=mdRender(fc); scrollToBottom(); }
@@ -592,6 +593,7 @@ async function doSubmit(text,files) {
         const t = line.trim(); if (!t.startsWith('data: ')) continue;
         const d = t.slice(6); if (d==='[DONE]') continue;
         try { const p = JSON.parse(d);
+          if (p.notice) { if (at) { const n=document.createElement('div'); n.className='notice'; n.textContent=p.notice; at.parentNode.insertBefore(n,at); } continue; }
           if (p.error) { (at||ab).textContent=p.error; ab.parentElement.className='message error'; isStreaming=false; return; }
           if (p.reasoning_content) { fr2+=p.reasoning_content; messages[aidx].reasoning=fr2; updateReasoningDisplay(ab,fr2); scrollToBottom(); }
           if (p.content) { fc+=p.content; messages[aidx].content=fc; if (at) { at.innerHTML=mdRender(fc); at.style.opacity='1'; } else ab.innerHTML=mdRender(fc); scrollToBottom(); }

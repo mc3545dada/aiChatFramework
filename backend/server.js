@@ -279,6 +279,8 @@ app.post('/api/chat', async (req, res) => {
           }),
         });
         if (retry.ok) {
+          // 通知前端此模型不支持多模态
+          res.write(`data: ${JSON.stringify({ notice: '此模型不支持多模态，已自动移除图片' })}\n\n`);
           const rdr = retry.body.getReader(); const dec = new TextDecoder(); let buf = '';
           while (true) {
             const { done, value } = await rdr.read(); if (done) break;
