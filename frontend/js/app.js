@@ -133,6 +133,8 @@ async function loadConvList() {
 }
 
 async function switchConv(id) {
+  // 中止正在进行的流式请求
+  if (abortController) { abortController.abort(); abortController = null; }
   if (currentConvId) await saveCurrentConv();
   try {
     const res = await fetch(`/api/conversations/${id}`);
@@ -163,6 +165,7 @@ async function deleteConv(id) {
 }
 
 newChatBtn.addEventListener('click', async () => {
+  if (abortController) { abortController.abort(); abortController = null; }
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   if (currentConvId && messages.filter(m => m.content).length > 0) {
     await saveCurrentConv();
@@ -437,12 +440,14 @@ chatForm.addEventListener('submit', async (e) => {
           const reasoning = parsed.reasoning_content;
           if (reasoning) {
             fullReasoning += reasoning;
+            messages[assistantIdx].reasoning = fullReasoning;
             updateReasoningDisplay(assistantBubble, fullReasoning);
             scrollToBottom();
           }
 
           if (parsed.content) {
             fullContent += parsed.content;
+            messages[assistantIdx].content = fullContent;
             if (assistantText) {
               assistantText.textContent = fullContent;
               assistantText.style.opacity = '1';
