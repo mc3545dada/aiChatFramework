@@ -363,7 +363,7 @@ settingsSave.addEventListener('click', async () => {
   const body={};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
-  if (settingKey.value.trim()) body.apiKey = settingKey.value.trim();
+  const sk = settingKey.value.trim(); if (sk) body.apiKey = sk;
   localStorage.setItem('systemPrompt',settingSystem.value);
   try { await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); settingsOverlay.classList.add('hidden'); settingKey.value=''; } catch(err) { alert(t('settings_saved')+err.message); }
 });
@@ -403,7 +403,7 @@ presetSaveBtn.addEventListener('click', () => {
   const name = presetName.value.trim();
   if (!name) return;
   const presets = getPresets();
-  presets.push({ name, apiBaseUrl: settingUrl.value.trim(), model: settingModel.value.trim(), apiKey: settingKey.value.trim() });
+  presets.push({ name, apiBaseUrl: settingUrl.value.trim(), model: settingModel.value.trim(), apiKey: settingKey.value.trim() || undefined });
   savePresets(presets);
   presetName.value = '';
   refreshPresetList();
@@ -418,12 +418,13 @@ presetLoadBtn.addEventListener('click', async () => {
   if (!p) return;
   if (p.apiBaseUrl) settingUrl.value = p.apiBaseUrl;
   if (p.model) settingModel.value = p.model;
-  if (p.apiKey) settingKey.value = p.apiKey;
-  // 自动保存到后端
+  settingKey.value = (p.apiKey && p.apiKey !== 'undefined') ? p.apiKey : '';
+  // 自动保存到后端（空密钥不发送，保留当前）
   const body = {};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
-  if (settingKey.value.trim()) body.apiKey = settingKey.value.trim();
+  const trimmedKey = settingKey.value.trim();
+  if (trimmedKey) body.apiKey = trimmedKey;
   try { await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); } catch {}
 });
 
