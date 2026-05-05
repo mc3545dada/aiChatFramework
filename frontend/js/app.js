@@ -403,11 +403,22 @@ presetSaveBtn.addEventListener('click', () => {
   const name = presetName.value.trim();
   if (!name) return;
   const presets = getPresets();
-  presets.push({ name, apiBaseUrl: settingUrl.value.trim(), model: settingModel.value.trim(), apiKey: settingKey.value.trim() || undefined });
+  const existing = presets.findIndex(p => p.name === name);
+  const entry = { name, apiBaseUrl: settingUrl.value.trim(), model: settingModel.value.trim(), apiKey: settingKey.value.trim() || undefined };
+  if (existing >= 0) { presets[existing] = entry; }
+  else { presets.push(entry); }
   savePresets(presets);
   presetName.value = '';
   refreshPresetList();
-  presetSelect.value = presets.length - 1;
+  presetSelect.value = existing >= 0 ? existing : presets.length - 1;
+});
+
+presetSelect.addEventListener('change', () => {
+  const idx = parseInt(presetSelect.value);
+  if (isNaN(idx)) return;
+  const presets = getPresets();
+  const p = presets[idx];
+  if (p && p.name) presetName.value = p.name;
 });
 
 presetLoadBtn.addEventListener('click', async () => {
@@ -419,6 +430,7 @@ presetLoadBtn.addEventListener('click', async () => {
   if (p.apiBaseUrl) settingUrl.value = p.apiBaseUrl;
   if (p.model) settingModel.value = p.model;
   settingKey.value = (p.apiKey && p.apiKey !== 'undefined') ? p.apiKey : '';
+  if (p.name) presetName.value = p.name;
   // 自动保存到后端（空密钥不发送，保留当前）
   const body = {};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
