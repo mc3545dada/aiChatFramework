@@ -211,9 +211,15 @@ async function uploadFiles() {
   const r = [];
   for (const af of attachedFiles) {
     if (IMAGE_EXTS.has(af.type)) {
-      // 图片：读取为 base64 data URL
-      try { r.push({ name: af.name, type: 'image', dataUrl: await fileToBase64(af.file) }); }
-      catch { r.push({ name: af.name, text: '' }); }
+      // 图片：保留 base64 支持多模态，同时发送后端 OCR
+      let ocrText = '';
+      try {
+        const fd = new FormData(); fd.append('file', af.file);
+        const ocr = await (await fetch('/api/upload',{method:'POST',body:fd})).json();
+        ocrText = ocr.text || '';
+      } catch {}
+      try { r.push({ name: af.name, type: 'image', dataUrl: await fileToBase64(af.file), text: ocrText }); }
+      catch { r.push({ name: af.name, text: ocrText }); }
     } else {
       // 其他文件：发后端解析
       const fd = new FormData(); fd.append('file', af.file);
@@ -484,8 +490,12 @@ chatForm.addEventListener('submit', async e => {
     const parts = [];
     if (textContent) parts.push({ type: 'text', text: textContent });
     for (const f of files) {
-      if (f.type === 'image' && f.dataUrl) parts.push({ type: 'image_url', image_url: { url: f.dataUrl } });
-      else if (f.text) parts.push({ type: 'text', text: '[文件内容: ' + f.name + ']\n' + f.text });
+      if (f.type === 'image' && f.dataUrl) {
+        parts.push({ type: 'image_url', image_url: { url: f.dataUrl } });
+        if (f.text) parts.push({ type: 'text', text: '[图片文字提取: ' + f.name + ']\n' + f.text });
+      } else if (f.text) {
+        parts.push({ type: 'text', text: '[文件内容: ' + f.name + ']\n' + f.text });
+      }
     }
     return { role: msg.role, content: parts.length > 1 ? parts : (parts[0]?.text || textContent) };
   }

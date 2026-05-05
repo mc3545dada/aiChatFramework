@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const mammoth = require('mammoth');
+const Tesseract = require('tesseract.js');
 require('dotenv').config();
 
 const app = express();
@@ -75,6 +76,7 @@ app.post('/api/settings', (req, res) => {
 
 // POST /api/upload — 上传并解析文件
 const TEXT_EXTS = new Set(['.txt','.md','.js','.py','.html','.css','.json','.csv','.xml','.yaml','.yml','.sh','.bat','.log','.env','.ini','.cfg','.conf','.sql','.rs','.go','.java','.ts','.tsx','.jsx','.vue','.php','.rb','.pl','.lua','.zig','.toml']);
+const IMAGE_EXTS = new Set(['.png','.jpg','.jpeg','.gif','.webp','.bmp']);
 
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: '请选择文件' });
@@ -88,6 +90,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       text = result.value.trim();
     } else if (TEXT_EXTS.has(ext)) {
       text = fs.readFileSync(req.file.path, 'utf-8').trim();
+    } else if (IMAGE_EXTS.has(ext)) {
+      // OCR 提取图片文字
+      try {
+        const ocr = await Tesseract.recognize(req.file.path, 'chi_sim+eng');
+        text = (ocr.data?.text || '').trim();
+      } catch { text = ''; }
     }
   } catch (err) {
     text = '';
