@@ -143,7 +143,7 @@ function mdRender(text) {
   const codeCopyLabel = codeCopyLabels[lang] || codeCopyLabels.zh;
   h = h.replace(/\x00CODE(\d+)\x00/g, (_, i) => {
     const b = codeBlocks[parseInt(i)];
-    return `<div class="code-wrap"><button class="code-copy" data-code="${escHtml(b.code)}">${codeCopyLabel}</button><pre><code class="lang-${b.lang||''}">${highlightCode(b.code, b.lang)}</code></pre></div>`;
+    return `<div class="code-wrap"><button class="code-copy" data-code="${encodeURIComponent(b.code)}">${codeCopyLabel}</button><pre><code class="lang-${b.lang||''}">${highlightCode(b.code, b.lang)}</code></pre></div>`;
   });
   h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
   h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>').replace(/^## (.+)$/gm, '<h2>$1</h2>').replace(/^# (.+)$/gm, '<h1>$1</h1>');
@@ -430,8 +430,8 @@ chatForm.addEventListener('submit', async e => {
       }
     }
     messages[asIdx].content=fc; if (fr) messages[asIdx].reasoning=fr; scheduleSave();
-    // 新对话自动重命名
-    if (!currentConvId || messages.length <= 2) autoRename();
+    // 新对话自动重命名（等保存完成后执行）
+    if (!currentConvId || messages.length <= 2) setTimeout(autoRename, 2000);
   } catch(err) {
     if (err.name==='AbortError') return;
     const em = t('error_prefix')+err.message;
@@ -511,9 +511,9 @@ async function doSubmit(text,files) {
 document.addEventListener('click', e => {
   const btn = e.target.closest('.code-copy');
   if (!btn) return;
-  const code = btn.dataset.code;
-  if (!code) return;
   try {
+    const code = decodeURIComponent(btn.dataset.code);
+    if (!code) return;
     navigator.clipboard.writeText(code);
     btn.textContent = '✓';
     setTimeout(() => { btn.textContent = t('copy'); }, 1500);
@@ -654,7 +654,7 @@ function setLoading(active) { loading.classList.toggle('hidden',!active); fileBt
 
 // ---- AI 自动重命名 ----
 async function autoRename() {
-  if (!messages.length || currentConvId === null) return;
+  if (!messages.length || !currentConvId) return;
   try {
     const data = await (await fetch('/api/rename', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
