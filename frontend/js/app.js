@@ -204,16 +204,32 @@ function renderFilePreviews() {
   filePreviews.innerHTML = attachedFiles.map((f,i) => `<span class="file-chip">${escHtml(f.name)} <button data-idx="${i}" class="file-chip-del">&times;</button></span>`).join('');
   filePreviews.querySelectorAll('.file-chip-del').forEach(btn => { btn.addEventListener('click',()=>{ attachedFiles.splice(parseInt(btn.dataset.idx),1); renderFilePreviews(); }); });
 }
+const IMAGE_EXTS = new Set(['.png','.jpg','.jpeg','.gif','.webp','.bmp']);
+
 async function uploadFiles() {
   if (!attachedFiles.length) return [];
   const r = [];
   for (const af of attachedFiles) {
-    const fd = new FormData(); fd.append('file',af.file);
-    try { const d = await (await fetch('/api/upload',{method:'POST',body:fd})).json(); r.push({name:d.name,text:d.text||''}); }
-    catch { r.push({name:af.name,text:''}); }
+    if (IMAGE_EXTS.has(af.type)) {
+      // 图片：读取为 base64 data URL
+      try { r.push({ name: af.name, type: 'image', dataUrl: await fileToBase64(af.file) }); }
+      catch { r.push({ name: af.name, text: '' }); }
+    } else {
+      // 其他文件：发后端解析
+      const fd = new FormData(); fd.append('file', af.file);
+      try { const d = await (await fetch('/api/upload',{method:'POST',body:fd})).json(); r.push({name:d.name,text:d.text||''}); }
+      catch { r.push({name:af.name,text:''}); }
+    }
   }
   attachedFiles = []; renderFilePreviews();
   return r;
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej;
+    r.readAsDataURL(file);
+  });
 }
 
 // ---- 侧边栏 ----
@@ -459,20 +475,36 @@ chatForm.addEventListener('submit', async e => {
   const text = userInput.value.trim();
   if (!text && !attachedFiles.length) return;
   const fileResults = await uploadFiles();
+  // 构建 API 消息（含图片 image_url 支持）
+  function buildApiMsg(msg, extraFiles) {
+    const files = extraFiles || msg.files || [];
+    const hasImage = files.some(f => f.type === 'image');
+    const textContent = msg.content || '';
+    if (!hasImage && !files.some(f => f.text)) return { role: msg.role, content: textContent };
+    const parts = [];
+    if (textContent) parts.push({ type: 'text', text: textContent });
+    for (const f of files) {
+      if (f.type === 'image' && f.dataUrl) parts.push({ type: 'image_url', image_url: { url: f.dataUrl } });
+      else if (f.text) parts.push({ type: 'text', text: '[文件内容: ' + f.name + ']\n' + f.text });
+    }
+    return { role: msg.role, content: parts.length > 1 ? parts : (parts[0]?.text || textContent) };
+  }
+
   const userMsg = { role:'user', content:text, files:fileResults, ts:Date.now() };
-  messages.push(userMsg); appendMessage('user',text,fileResults);
+  messages.push(userMsg);
+  // 用户消息单独渲染纯文本（图片用卡片展示）
+  if (fileResults.some(f => f.type === 'image')) {
+    // 有图片时：文本 + 图片预览
+    appendMessage('user', text, fileResults.map(f => ({ name: f.name, type: 'image' })));
+  } else {
+    appendMessage('user', text, fileResults);
+  }
   userInput.value=''; userInput.style.height='auto';
   scheduleSave(); setLoading(true); showStopBtn();
   const sp = localStorage.getItem('systemPrompt')||'';
   const apiMsgs = sp ? [{role:'system',content:sp}] : [];
-  for (let i=0; i<messages.length-1; i++) {
-    const m=messages[i];
-    if (m.role==='user' && m.files && m.files.length) { let f=m.content||''; for (const ff of m.files) if (ff.text) f+='\n\n[文件内容: '+ff.name+']\n'+ff.text; apiMsgs.push({role:'user',content:f}); }
-    else apiMsgs.push({role:m.role,content:m.content||''});
-  }
-  let fut = text;
-  for (const f of fileResults) if (f.text) fut += '\n\n[文件内容: '+f.name+']\n'+f.text;
-  apiMsgs.push({role:'user',content:fut});
+  for (let i=0; i<messages.length-1; i++) apiMsgs.push(buildApiMsg(messages[i]));
+  apiMsgs.push(buildApiMsg({ role:'user', content: text, files: fileResults }));
   const asIdx = messages.length;
   messages.push({role:'assistant',content:'',ts:Date.now()});
   const ab = appendMessage('assistant','……');
@@ -676,7 +708,18 @@ function appendMessage(role, content, files, reasoning, ts) {
     if (content) { const te=document.createElement('div'); te.className='user-text'; te.textContent=content; bubble.appendChild(te); }
     if (files&&files.length) {
       const c=document.createElement('div'); c.className='msg-files';
-      for (const f of files) { const card=document.createElement('div'); card.className='file-card'; card.innerHTML=`<span class="file-card-icon">&#128196;</span><span class="file-card-name">${escHtml(f.name)}</span><span class="file-card-badge ${f.text?'badge-ok':'badge-fail'}">${f.text?t('parsed'):t('not_supported')}</span>`; c.appendChild(card); }
+      for (const f of files) {
+        if (f.type === 'image' || (f.name && IMAGE_EXTS.has('.'+f.name.split('.').pop().toLowerCase()))) {
+          const img = document.createElement('img'); img.className='msg-image';
+          img.src = f.dataUrl || ''; img.alt = f.name;
+          img.addEventListener('click', () => { if (img.src) showLightbox(img.src); });
+          c.appendChild(img);
+        } else {
+          const card=document.createElement('div'); card.className='file-card';
+          card.innerHTML=`<span class="file-card-icon">&#128196;</span><span class="file-card-name">${escHtml(f.name)}</span><span class="file-card-badge ${f.text?'badge-ok':'badge-fail'}">${f.text?t('parsed'):t('not_supported')}</span>`;
+          c.appendChild(card);
+        }
+      }
       bubble.appendChild(c);
     }
   }
