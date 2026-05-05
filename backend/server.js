@@ -171,6 +171,42 @@ app.get('/api/models', async (req, res) => {
   }
 });
 
+// POST /api/rename — AI 自动生成对话标题
+app.post('/api/rename', async (req, res) => {
+  const { messages } = req.body;
+  const settings = getSettings();
+  if (!settings.apiKey) return res.json({ title: '新对话' });
+  if (!messages || !messages.length) return res.json({ title: '新对话' });
+
+  try {
+    const userMsg = messages.find(m => m.role === 'user');
+    const text = typeof userMsg?.content === 'string' ? userMsg.content.slice(0, 100) : '';
+    if (!text) return res.json({ title: '新对话' });
+
+    const response = await fetch(`${settings.apiBaseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.apiKey}` },
+      body: JSON.stringify({
+        model: settings.model,
+        messages: [
+          { role: 'system', content: 'You are a title generator. Respond with ONLY a short title (max 6 words, in the same language as the conversation). No quotes, no punctuation, no explanation.' },
+          { role: 'user', content: text },
+        ],
+        stream: false,
+        max_tokens: 15,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) return res.json({ title: '新对话' });
+    const data = await response.json();
+    const title = (data.choices?.[0]?.message?.content || '').replace(/[""''\n]/g, '').trim();
+    res.json({ title: title || '新对话' });
+  } catch {
+    res.json({ title: '新对话' });
+  }
+});
+
 // POST /api/chat — 流式代理到 OpenAI 兼容 API
 app.post('/api/chat', async (req, res) => {
   const { messages, model, reasoningEffort, thinkingEnabled, temperature, top_p } = req.body;

@@ -138,10 +138,12 @@ function mdRender(text) {
   });
   // 转义非代码部分
   let h = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // 插回高亮后的代码块
+  // 插回高亮后的代码块（带复制按钮）
+  const codeCopyLabels = { zh:'复制代码', en:'Copy code' };
+  const codeCopyLabel = codeCopyLabels[lang] || codeCopyLabels.zh;
   h = h.replace(/\x00CODE(\d+)\x00/g, (_, i) => {
     const b = codeBlocks[parseInt(i)];
-    return `<pre><code class="lang-${b.lang||''}">${highlightCode(b.code, b.lang)}</code></pre>`;
+    return `<div class="code-wrap"><button class="code-copy" data-code="${escHtml(b.code)}">${codeCopyLabel}</button><pre><code class="lang-${b.lang||''}">${highlightCode(b.code, b.lang)}</code></pre></div>`;
   });
   h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
   h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>').replace(/^## (.+)$/gm, '<h2>$1</h2>').replace(/^# (.+)$/gm, '<h1>$1</h1>');
@@ -233,7 +235,20 @@ async function loadConvList() {
     });
     convList.innerHTML = '';
     if (!sorted.length) { convList.innerHTML = '<div class="conv-empty">'+t('no_conv')+'</div>'; return; }
+    // 按日期分组
+    const groups = {};
     for (const conv of sorted) {
+      const g = dateGroup(conv.updatedAt || conv.createdAt || Date.now());
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(conv);
+    }
+    const groupOrder = ['today','yesterday','week','older'];
+    for (const g of groupOrder) {
+      const convs = groups[g];
+      if (!convs || !convs.length) continue;
+      const hdr = document.createElement('div'); hdr.className = 'conv-group-header'; hdr.textContent = dateGroupLabel(g);
+      convList.appendChild(hdr);
+      for (const conv of convs) {
       const isPinned = pinned.includes(conv.id);
       const item = document.createElement('div');
       item.className = 'conv-item' + (conv.id===currentConvId?' active':'') + (isPinned?' pinned':'');
@@ -262,6 +277,7 @@ async function loadConvList() {
         span.replaceWith(inp); inp.focus(); inp.select();
       });
       convList.appendChild(item);
+    }
     }
   } catch {}
 }
@@ -414,6 +430,8 @@ chatForm.addEventListener('submit', async e => {
       }
     }
     messages[asIdx].content=fc; if (fr) messages[asIdx].reasoning=fr; scheduleSave();
+    // 新对话自动重命名
+    if (!currentConvId || messages.length <= 2) autoRename();
   } catch(err) {
     if (err.name==='AbortError') return;
     const em = t('error_prefix')+err.message;
@@ -487,6 +505,52 @@ async function doSubmit(text,files) {
     if (at) at.textContent=em; else ab.textContent=em;
     ab.parentElement.className='message error';
   } finally { setLoading(false); hideStopBtn(); isStreaming=false; abortController=null; }
+}
+
+// ---- 代码块复制（事件委托） ----
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.code-copy');
+  if (!btn) return;
+  const code = btn.dataset.code;
+  if (!code) return;
+  try {
+    navigator.clipboard.writeText(code);
+    btn.textContent = '✓';
+    setTimeout(() => { btn.textContent = t('copy'); }, 1500);
+  } catch {}
+});
+
+// ---- 图片放大查看 ----
+let lightboxEl = null;
+function showLightbox(src) {
+  if (!lightboxEl) {
+    lightboxEl = document.createElement('div'); lightboxEl.className = 'lightbox hidden';
+    lightboxEl.addEventListener('click', () => lightboxEl.classList.add('hidden'));
+    const img = document.createElement('img');
+    img.className = 'lightbox-img';
+    lightboxEl.appendChild(img);
+    document.body.appendChild(lightboxEl);
+    // Esc 关闭
+    document.addEventListener('keydown', e2 => { if (e2.key === 'Escape') lightboxEl.classList.add('hidden'); });
+  }
+  lightboxEl.querySelector('img').src = src;
+  lightboxEl.classList.remove('hidden');
+}
+
+// ---- 对话按日期分组 ----
+function dateGroup(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 86400000 && d.getDate() === now.getDate()) return 'today';
+  if (diff < 172800000 && (d.getDate() === now.getDate() - 1 || (now.getDate() === 1 && d.getDate() > 20))) return 'yesterday';
+  if (diff < 604800000) return 'week';
+  return 'older';
+}
+function dateGroupLabel(group) {
+  const labels = { today: '今天', yesterday: '昨天', week: '本周', older: '更早' };
+  const en = { today: 'Today', yesterday: 'Yesterday', week: 'This Week', older: 'Earlier' };
+  return (lang === 'en' ? en : labels)[group] || group;
 }
 
 // ---- 工具函数 ----
@@ -587,6 +651,25 @@ function appendMessage(role, content, files, reasoning, ts) {
 }
 
 function setLoading(active) { loading.classList.toggle('hidden',!active); fileBtn.disabled=active; }
+
+// ---- AI 自动重命名 ----
+async function autoRename() {
+  if (!messages.length || currentConvId === null) return;
+  try {
+    const data = await (await fetch('/api/rename', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: messages.slice(0, 2) }),
+    })).json();
+    if (data.title && data.title !== '新对话') {
+      // 直接更新后端
+      await fetch('/api/conversations', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentConvId, messages, title: data.title }),
+      });
+      loadConvList();
+    }
+  } catch {}
+}
 
 // ---- 编辑消息 ----
 function editMessage(msgDiv, oldContent) {
