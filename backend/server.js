@@ -325,7 +325,7 @@ app.get('/api/conversations/:id', (req, res) => {
 // POST /api/conversations — 保存对话（新建 / 更新）
 app.post('/api/conversations', (req, res) => {
   ensureConvDir();
-  const { id, messages } = req.body;
+  const { id, messages, title } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages 是必填项' });
@@ -337,7 +337,7 @@ app.post('/api/conversations', (req, res) => {
     // 更新已有对话
     const existing = JSON.parse(fs.readFileSync(convPath(id), 'utf-8'));
     existing.messages = messages;
-    existing.title = generateTitle(messages);
+    existing.title = title || existing.title || generateTitle(messages);
     existing.updatedAt = now;
     fs.writeFileSync(convPath(id), JSON.stringify(existing, null, 2), 'utf-8');
     return res.json({ id: existing.id });
@@ -346,7 +346,7 @@ app.post('/api/conversations', (req, res) => {
   // 新建对话
   const newConv = {
     id: generateId(),
-    title: generateTitle(messages),
+    title: title || generateTitle(messages),
     messages,
     createdAt: now,
     updatedAt: now,
