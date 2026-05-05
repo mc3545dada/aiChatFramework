@@ -11,6 +11,9 @@
     <!-- 侧边栏 -->
     <aside id="sidebar" class="hidden-mobile">
       <div class="sidebar-header">
+        <div class="search-row">
+          <input type="text" id="search-input" placeholder="搜索对话..." class="sidebar-search">
+        </div>
         <button id="new-chat-btn" class="new-chat-btn">+ 新对话</button>
       </div>
       <nav id="conv-list"></nav>
@@ -21,6 +24,7 @@
       <header>
         <button id="sidebar-toggle" title="切换侧栏">&#9776;</button>
         <h1>aiChatFramework</h1>
+        <button id="export-btn" title="导出对话">&#128230;</button>
         <button id="settings-btn" title="设置">&#9881;</button>
       </header>
 
@@ -39,7 +43,7 @@
           <label class="think-toggle">
             <input type="checkbox" id="think-check" checked>
             <span class="toggle-track"></span>
-            <span>思考</span>
+            <span data-i18n="think">思考</span>
           </label>
           <select id="think-effort">
             <option value="high">high</option>
@@ -52,9 +56,10 @@
           <textarea
             id="user-input"
             rows="1"
+            data-i18n-placeholder="input_placeholder"
             placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
           ></textarea>
-          <button type="submit" id="send-btn">发送</button>
+          <button type="submit" id="send-btn" data-i18n="send">发送</button>
         </form>
       </footer>
     </div>
@@ -64,21 +69,19 @@
   <div id="settings-overlay" class="hidden">
     <div id="settings-modal">
       <div class="modal-header">
-        <h2>设置</h2>
+        <h2 data-i18n="settings">设置</h2>
         <button id="settings-close">&times;</button>
       </div>
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="api">API</button>
-        <button class="tab-btn" data-tab="appearance">外观</button>
-        <button class="tab-btn" data-tab="about">关于</button>
+        <button class="tab-btn" data-tab="appearance" data-i18n="appearance">外观</button>
+        <button class="tab-btn" data-tab="about" data-i18n="about">关于</button>
       </div>
       <div class="modal-body tab-panel" id="tab-api">
-        <label>
-          API 地址
+        <label data-i18n="api_url">API 地址
           <input id="setting-url" type="text" placeholder="https://api.openai.com">
         </label>
-        <label>
-          模型
+        <label data-i18n="model">模型
           <div class="model-row">
             <input id="setting-model" type="text" placeholder="gpt-3.5-turbo">
             <button id="fetch-models-btn" class="btn-small" title="获取可用模型列表">&#128269;</button>
@@ -87,13 +90,15 @@
             <select id="model-select"></select>
           </div>
         </label>
-        <label>
-          API 密钥
+        <label data-i18n="api_key">API 密钥
           <input id="setting-key" type="password" placeholder="sk-...">
         </label>
-        <p class="hint">修改后自动保存，重启服务后仍然有效</p>
+        <label data-i18n="system_prompt">系统提示词
+          <textarea id="setting-system" rows="3" placeholder="选填：设定 AI 的角色和行为"></textarea>
+        </label>
+        <p class="hint" data-i18n="settings_hint">修改后自动保存，重启服务后仍然有效</p>
         <div class="param-row">
-          <label>温度 (Temperature)</label>
+          <label>Temperature</label>
           <div class="slider-row">
             <input type="range" id="setting-temp" min="0" max="2" step="0.1" value="1">
             <span id="temp-val" class="param-val">1.0</span>
@@ -107,36 +112,23 @@
           </div>
         </div>
         <div id="test-result" class="hidden"></div>
-        <button id="test-btn" class="btn-test">测试 API 连接</button>
+        <button id="test-btn" class="btn-test" data-i18n="test_btn">测试 API 连接</button>
       </div>
       <div class="modal-body tab-panel hidden" id="tab-appearance">
-        <label>主题背景</label>
+        <label data-i18n="theme">主题背景</label>
         <div class="bg-grid">
-          <div class="bg-option" data-bg="light">
-            <div class="bg-preview" style="background:#f5f7fa"></div>
-            <span>明亮</span>
-          </div>
-          <div class="bg-option" data-bg="dark">
-            <div class="bg-preview" style="background:#1a1a2e"></div>
-            <span>暗色</span>
-          </div>
-          <div class="bg-option" data-bg="warm">
-            <div class="bg-preview" style="background:#fdf6e3"></div>
-            <span>暖色</span>
-          </div>
-          <div class="bg-option" data-bg="gradient-blue">
-            <div class="bg-preview" style="background:linear-gradient(135deg,#667eea,#764ba2)"></div>
-            <span>渐变蓝</span>
-          </div>
-          <div class="bg-option" data-bg="gradient-green">
-            <div class="bg-preview" style="background:linear-gradient(135deg,#11998e,#38ef7d)"></div>
-            <span>渐变绿</span>
-          </div>
-          <div class="bg-option" data-bg="gradient-sunset">
-            <div class="bg-preview" style="background:linear-gradient(135deg,#f093fb,#f5576c)"></div>
-            <span>日落</span>
-          </div>
+          <div class="bg-option" data-bg="light"><div class="bg-preview" style="background:#f5f7fa"></div><span data-i18n="light">明亮</span></div>
+          <div class="bg-option" data-bg="dark"><div class="bg-preview" style="background:#1a1a2e"></div><span data-i18n="dark">暗色</span></div>
+          <div class="bg-option" data-bg="warm"><div class="bg-preview" style="background:#fdf6e3"></div><span data-i18n="warm">暖色</span></div>
+          <div class="bg-option" data-bg="gradient-blue"><div class="bg-preview" style="background:linear-gradient(135deg,#667eea,#764ba2)"></div><span data-i18n="gradient_blue">渐变蓝</span></div>
+          <div class="bg-option" data-bg="gradient-green"><div class="bg-preview" style="background:linear-gradient(135deg,#11998e,#38ef7d)"></div><span data-i18n="gradient_green">渐变绿</span></div>
+          <div class="bg-option" data-bg="gradient-sunset"><div class="bg-preview" style="background:linear-gradient(135deg,#f093fb,#f5576c)"></div><span data-i18n="gradient_sunset">日落</span></div>
         </div>
+        <label data-i18n="language">语言</label>
+        <select id="lang-select" class="lang-select">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select>
       </div>
       <div class="modal-body tab-panel hidden" id="tab-about">
         <div class="about-content">
@@ -145,7 +137,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button id="settings-save" class="btn-primary">保存</button>
+        <button id="settings-save" class="btn-primary" data-i18n="save">保存</button>
       </div>
     </div>
   </div>
