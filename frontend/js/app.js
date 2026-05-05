@@ -22,6 +22,10 @@ const modelSelectWrap = document.getElementById('model-list-wrap');
 const modelSelect = document.getElementById('model-select');
 const thinkCheck = document.getElementById('think-check');
 const thinkEffort = document.getElementById('think-effort');
+const settingTemp = document.getElementById('setting-temp');
+const tempVal = document.getElementById('temp-val');
+const settingTopp = document.getElementById('setting-topp');
+const toppVal = document.getElementById('topp-val');
 
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('sidebar');
@@ -333,6 +337,24 @@ document.querySelectorAll('.bg-option').forEach(el => {
   el.addEventListener('click', () => applyBg(el.dataset.bg));
 });
 
+// ---- 模型参数滑块 ----
+function loadParams() {
+  settingTemp.value = localStorage.getItem('temperature') || '1';
+  settingTopp.value = localStorage.getItem('top_p') || '1';
+  tempVal.textContent = parseFloat(settingTemp.value).toFixed(1);
+  toppVal.textContent = parseFloat(settingTopp.value).toFixed(2);
+}
+loadParams();
+
+settingTemp.addEventListener('input', () => {
+  tempVal.textContent = parseFloat(settingTemp.value).toFixed(1);
+  localStorage.setItem('temperature', settingTemp.value);
+});
+settingTopp.addEventListener('input', () => {
+  toppVal.textContent = parseFloat(settingTopp.value).toFixed(2);
+  localStorage.setItem('top_p', settingTopp.value);
+});
+
 // ---- API 连接测试 ----
 testBtn.addEventListener('click', async () => {
   testResult.className = 'test-msg';
@@ -458,6 +480,8 @@ chatForm.addEventListener('submit', async (e) => {
         messages: apiMessages,
         thinkingEnabled: thinkCheck.checked,
         reasoningEffort: thinkEffort.value,
+        temperature: parseFloat(settingTemp.value),
+        top_p: parseFloat(settingTopp.value),
       }),
       signal: abortController.signal,
     });
@@ -574,6 +598,147 @@ function addCopyBtn(bubble, content) {
   bubble.appendChild(btn);
 }
 
+// ---- 重新生成 ----
+function regenerateLast() {
+  if (isStreaming) return;
+  // 找到最后一条 assistant 消息并移除
+  let lastAsstIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant') { lastAsstIdx = i; break; }
+  }
+  if (lastAsstIdx === -1) return;
+  messages.splice(lastAsstIdx, 1);
+  // 重新提交（模拟表单提交）
+  renderMessages();
+  scrollToBottom();
+  // 取最后一条 user 消息的内容重新触发
+  const lastUser = messages[messages.length - 1];
+  if (lastUser && lastUser.role === 'user') {
+    const text = typeof lastUser.content === 'string' ? lastUser.content : '';
+    attachedFiles = lastUser.files ? lastUser.files.map(f => ({ file: null, name: f.name, size: 0, type: '.' + f.name.split('.').pop() })) : [];
+    // 用已有数据触发提交（绕过表单验证）
+    doSubmit(text, lastUser.files || []);
+  }
+}
+
+async function doSubmit(text, files) {
+  if (isStreaming) return;
+  const fileResults = await uploadFiles();
+  // 如果有遗留文件，合并
+  for (const f of files) { if (!fileResults.find(r => r.name === f.name)) fileResults.push(f); }
+  attachedFiles = [];
+
+  const userMsg = { role: 'user', content: text, files: fileResults };
+  messages.push(userMsg);
+  appendMessage('user', text, fileResults);
+
+  scheduleSave();
+  setLoading(true);
+  showStopBtn();
+
+  const apiMessages = messages.slice(0, -1).map(m => {
+    if (m.role === 'user' && m.files && m.files.length) {
+      let full = m.content || '';
+      for (const f of m.files) {
+        if (f.text) full += `\n\n[文件内容: ${f.name}]\n${f.text}`;
+      }
+      return { role: 'user', content: full };
+    }
+    return { role: m.role, content: m.content || '' };
+  });
+  let fullUserText = text;
+  for (const f of fileResults) {
+    if (f.text) fullUserText += `\n\n[文件内容: ${f.name}]\n${f.text}`;
+  }
+  apiMessages.push({ role: 'user', content: fullUserText });
+
+  const assistantIdx = messages.length;
+  messages.push({ role: 'assistant', content: '' });
+  const assistantBubble = appendMessage('assistant', '……');
+  const assistantText = assistantBubble.querySelector('.assistant-text');
+  if (assistantText) assistantText.style.opacity = '0.5';
+
+  isStreaming = true;
+
+  try {
+    abortController = new AbortController();
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: apiMessages,
+        thinkingEnabled: thinkCheck.checked,
+        reasoningEffort: thinkEffort.value,
+        temperature: parseFloat(settingTemp.value),
+        top_p: parseFloat(settingTopp.value),
+      }),
+      signal: abortController.signal,
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullContent = '';
+    let fullReasoning = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        const data = trimmed.slice(6);
+        if (data === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) {
+            if (assistantText) assistantText.textContent = parsed.error;
+            else assistantBubble.textContent = parsed.error;
+            assistantBubble.parentElement.className = 'message error';
+            isStreaming = false;
+            return;
+          }
+          const reasoning = parsed.reasoning_content;
+          if (reasoning) {
+            fullReasoning += reasoning;
+            messages[assistantIdx].reasoning = fullReasoning;
+            updateReasoningDisplay(assistantBubble, fullReasoning);
+            scrollToBottom();
+          }
+          if (parsed.content) {
+            fullContent += parsed.content;
+            messages[assistantIdx].content = fullContent;
+            if (assistantText) {
+              assistantText.innerHTML = mdRender(fullContent);
+              assistantText.style.opacity = '1';
+            } else {
+              assistantBubble.innerHTML = mdRender(fullContent);
+            }
+            scrollToBottom();
+          }
+        } catch {}
+      }
+    }
+    messages[assistantIdx].content = fullContent;
+    if (fullReasoning) messages[assistantIdx].reasoning = fullReasoning;
+    scheduleSave();
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    const errMsg = '请求失败: ' + err.message;
+    if (assistantText) assistantText.textContent = errMsg;
+    else assistantBubble.textContent = errMsg;
+    assistantBubble.parentElement.className = 'message error';
+  } finally {
+    setLoading(false);
+    hideStopBtn();
+    isStreaming = false;
+    abortController = null;
+  }
+}
+
 // ---- 工具函数 ----
 function escHtml(s) {
   const d = document.createElement('div');
@@ -687,6 +852,34 @@ function appendMessage(role, content, files, reasoning) {
 
   div.appendChild(label);
   div.appendChild(bubble);
+
+  // 操作按钮（重新生成、token 计数）
+  if (role === 'assistant' && content) {
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+
+    // 重新生成
+    const regenBtn = document.createElement('button');
+    regenBtn.className = 'action-btn';
+    regenBtn.title = '重新生成';
+    regenBtn.innerHTML = '&#8635;';
+    regenBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      regenerateLast();
+    });
+    actions.appendChild(regenBtn);
+
+    // Token 估算（~4 chars/token）
+    const tCount = Math.max(1, Math.round(content.length / 4));
+    const tokEl = document.createElement('span');
+    tokEl.className = 'token-count';
+    tokEl.textContent = `~${tCount} tokens`;
+    tokEl.title = '估算值（~4 字符/token）';
+    actions.appendChild(tokEl);
+
+    div.appendChild(actions);
+  }
+
   messagesContainer.appendChild(div);
   scrollToBottom();
   return bubble;

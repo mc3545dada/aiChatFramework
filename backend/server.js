@@ -173,7 +173,7 @@ app.get('/api/models', async (req, res) => {
 
 // POST /api/chat — 流式代理到 OpenAI 兼容 API
 app.post('/api/chat', async (req, res) => {
-  const { messages, model, reasoningEffort, thinkingEnabled } = req.body;
+  const { messages, model, reasoningEffort, thinkingEnabled, temperature, top_p } = req.body;
   const settings = getSettings();
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -204,6 +204,8 @@ app.post('/api/chat', async (req, res) => {
         ...(thinkingEnabled !== undefined ? {
           extra_body: { thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' } }
         } : {}),
+        ...(temperature !== undefined ? { temperature } : {}),
+        ...(top_p !== undefined ? { top_p } : {}),
       }),
     });
 

@@ -92,6 +92,20 @@
           <input id="setting-key" type="password" placeholder="sk-...">
         </label>
         <p class="hint">修改后自动保存，重启服务后仍然有效</p>
+        <div class="param-row">
+          <label>温度 (Temperature)</label>
+          <div class="slider-row">
+            <input type="range" id="setting-temp" min="0" max="2" step="0.1" value="1">
+            <span id="temp-val" class="param-val">1.0</span>
+          </div>
+        </div>
+        <div class="param-row">
+          <label>Top-P</label>
+          <div class="slider-row">
+            <input type="range" id="setting-topp" min="0" max="1" step="0.05" value="1">
+            <span id="topp-val" class="param-val">1.00</span>
+          </div>
+        </div>
         <div id="test-result" class="hidden"></div>
         <button id="test-btn" class="btn-test">测试 API 连接</button>
       </div>
