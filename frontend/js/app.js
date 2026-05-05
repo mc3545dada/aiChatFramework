@@ -138,6 +138,8 @@ const HL_LANGS = {
   sh:['if','then','else','elif','fi','for','while','do','done','case','esac','return','exit','export','local','function','echo','source'],
 };
 
+const HASH_COMMENT = new Set(['py','sh','perl','ruby','r','yaml','yml']);
+
 function highlightCode(code, lang) {
   const keywords = HL_LANGS[lang] || [];
   let h = escHtml(code);
@@ -145,7 +147,9 @@ function highlightCode(code, lang) {
     const pat = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'g');
     h = h.replace(pat, '<span class="hl-kw">$1</span>');
   }
-  h = h.replace(/(\/\/[^\n]*|#.*)/g, '<span class="hl-cm">$1</span>');
+  // 只有 # 是注释的语言才匹配 # 注释
+  const cmt = HASH_COMMENT.has(lang) ? /(\/\/[^\n]*|#.*)/g : /\/\/[^\n]*/g;
+  h = h.replace(cmt, '<span class="hl-cm">$1</span>');
   h = h.replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)/g, '<span class="hl-str">$1</span>');
   h = h.replace(/(\b\d+\.?\d*\b)/g, '<span class="hl-num">$1</span>');
   return h;
