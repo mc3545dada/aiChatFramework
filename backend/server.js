@@ -353,6 +353,12 @@ function ensureConvDir() {
   if (!fs.existsSync(CONV_DIR)) fs.mkdirSync(CONV_DIR, { recursive: true });
 }
 
+const VALID_ID = /^[a-z0-9_-]{6,40}$/;
+
+function isValidId(id) {
+  return typeof id === 'string' && VALID_ID.test(id);
+}
+
 function convPath(id) {
   return path.join(CONV_DIR, `${id}.json`);
 }
@@ -399,6 +405,7 @@ app.get('/api/conversations', (req, res) => {
 
 // GET /api/conversations/:id — 获取单个对话
 app.get('/api/conversations/:id', (req, res) => {
+  if (!isValidId(req.params.id)) return res.status(400).json({ error: '无效的对话 ID' });
   ensureConvDir();
   const file = convPath(req.params.id);
   if (!fs.existsSync(file)) {
@@ -423,6 +430,7 @@ app.post('/api/conversations', (req, res) => {
 
   const now = Date.now();
 
+  if (id && !isValidId(id)) return res.status(400).json({ error: '无效的对话 ID' });
   if (id && fs.existsSync(convPath(id))) {
     // 更新已有对话
     const existing = JSON.parse(fs.readFileSync(convPath(id), 'utf-8'));
@@ -447,6 +455,7 @@ app.post('/api/conversations', (req, res) => {
 
 // DELETE /api/conversations/:id — 删除对话
 app.delete('/api/conversations/:id', (req, res) => {
+  if (!isValidId(req.params.id)) return res.status(400).json({ error: '无效的对话 ID' });
   ensureConvDir();
   const file = convPath(req.params.id);
   if (!fs.existsSync(file)) {
