@@ -1,13 +1,13 @@
 # aiChatFramework
 
-A lightweight full-stack web chat interface for OpenAI-compatible APIs. Streaming, thinking mode, file upload with OCR fallback, conversation management, and a polished responsive UI — all in zero-build HTML/CSS/JS + Node.js.
+A lightweight full-stack web chat interface for OpenAI-compatible APIs. Streaming, thinking mode, file upload, multimodal support, conversation management, and a polished responsive UI — all in zero-build HTML/CSS/JS + Node.js.
 
 ## Features
 
 - **Streaming responses** — real-time token-by-token via SSE, with auto-scroll lock
 - **Thinking / Reasoning** — on/off toggle, effort control (high/max), collapsible reasoning display (DeepSeek R1 / V4)
-- **Multimodal support** — send images to vision models via `image_url`, auto-fallback to text-only for non-vision models with warning notice
-- **File upload** — .docx text extraction via mammoth, plain text files, code files, images; OCR text extraction for images
+- **Multimodal support** — images sent as `image_url` for vision models, auto-fallback to text-only for non-vision models
+- **File upload** — .docx text extraction via mammoth, plain text/code files read as text, images as base64 for multimodal models
 - **Conversation history** — auto-saved, switch between conversations, delete, rename, pin, date grouping (Today/Yesterday/Week/Earlier)
 - **Auto rename** — AI-generated conversation titles (toggle in settings)
 - **Message actions** — copy, edit (user messages), delete, regenerate (AI messages), token count estimate, timestamps
