@@ -50,7 +50,17 @@ function t(key, vars) {
 
 function applyLang() {
   lang = localStorage.getItem('lang') || 'zh';
-  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    // 只替换文本节点，不清掉子元素
+    const key = el.dataset.i18n;
+    if (el.children.length === 0) { el.textContent = t(key); }
+    else {
+      // 有子元素的只替换第一个文本节点
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+      const firstText = walker.nextNode();
+      if (firstText && firstText.textContent.trim()) firstText.textContent = t(key);
+    }
+  });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => el.placeholder = t(el.dataset.i18nPlaceholder));
   document.getElementById('lang-select').value = lang;
 }
