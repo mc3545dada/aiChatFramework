@@ -56,7 +56,6 @@ app.get('/api/settings', (req, res) => {
     apiBaseUrl: s.apiBaseUrl,
     model: s.model,
     hasKey: !!s.apiKey,
-    apiKey: s.apiKey || '',
   });
 });
 
