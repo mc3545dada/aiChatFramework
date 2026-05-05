@@ -253,6 +253,24 @@ settingsSave.addEventListener('click', async () => {
   }
 });
 
+// ---- 主题背景 ----
+const BGS = ['light','dark','warm','gradient-blue','gradient-green','gradient-sunset'];
+
+function applyBg(name) {
+  document.body.className = 'bg-' + name;
+  localStorage.setItem('bgTheme', name);
+  document.querySelectorAll('.bg-option').forEach(el => {
+    el.classList.toggle('active', el.dataset.bg === name);
+  });
+}
+
+// 加载已保存的背景
+applyBg(localStorage.getItem('bgTheme') || 'light');
+
+document.querySelectorAll('.bg-option').forEach(el => {
+  el.addEventListener('click', () => applyBg(el.dataset.bg));
+});
+
 // ---- API 连接测试 ----
 testBtn.addEventListener('click', async () => {
   testResult.className = 'test-msg';

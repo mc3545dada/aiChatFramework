@@ -38,6 +38,7 @@
         <div id="think-bar" class="think-bar">
           <label class="think-toggle">
             <input type="checkbox" id="think-check" checked>
+            <span class="toggle-track"></span>
             <span>思考</span>
           </label>
           <select id="think-effort">
@@ -68,6 +69,7 @@
       </div>
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="api">API</button>
+        <button class="tab-btn" data-tab="appearance">外观</button>
         <button class="tab-btn" data-tab="about">关于</button>
       </div>
       <div class="modal-body tab-panel" id="tab-api">
@@ -93,9 +95,38 @@
         <div id="test-result" class="hidden"></div>
         <button id="test-btn" class="btn-test">测试 API 连接</button>
       </div>
+      <div class="modal-body tab-panel hidden" id="tab-appearance">
+        <label>主题背景</label>
+        <div class="bg-grid">
+          <div class="bg-option" data-bg="light">
+            <div class="bg-preview" style="background:#f5f7fa"></div>
+            <span>明亮</span>
+          </div>
+          <div class="bg-option" data-bg="dark">
+            <div class="bg-preview" style="background:#1a1a2e"></div>
+            <span>暗色</span>
+          </div>
+          <div class="bg-option" data-bg="warm">
+            <div class="bg-preview" style="background:#fdf6e3"></div>
+            <span>暖色</span>
+          </div>
+          <div class="bg-option" data-bg="gradient-blue">
+            <div class="bg-preview" style="background:linear-gradient(135deg,#667eea,#764ba2)"></div>
+            <span>渐变蓝</span>
+          </div>
+          <div class="bg-option" data-bg="gradient-green">
+            <div class="bg-preview" style="background:linear-gradient(135deg,#11998e,#38ef7d)"></div>
+            <span>渐变绿</span>
+          </div>
+          <div class="bg-option" data-bg="gradient-sunset">
+            <div class="bg-preview" style="background:linear-gradient(135deg,#f093fb,#f5576c)"></div>
+            <span>日落</span>
+          </div>
+        </div>
+      </div>
       <div class="modal-body tab-panel hidden" id="tab-about">
         <div class="about-content">
-          <p>AI Chat</p>
+          <p>aiChatFramework</p>
           <p class="hint">by mc3545dada</p>
         </div>
       </div>
