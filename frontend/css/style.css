@@ -161,6 +161,7 @@ header h1 { flex: 1; font-size: 18px; font-weight: 600; color: #1a1a1a; }
 .message .bubble {
   max-width: 80%; padding: 10px 14px; border-radius: 16px;
   line-height: 1.6; font-size: 14px; word-wrap: break-word; white-space: pre-wrap;
+  position: relative;
 }
 .message.user .bubble {
   background: #1677ff; color: #fff; border-bottom-right-radius: 4px;
@@ -279,6 +280,8 @@ footer { border-top: 1px solid #e8e8e8; background: #fff; transition: background
 #send-btn:hover { background: #4096ff; transform: scale(1.02); }
 #send-btn:active { transform: scale(.97); }
 #send-btn:disabled { background: #a0c4ff; cursor: not-allowed; transform: none; }
+#send-btn.btn-stop { background: #ff4d4f; }
+#send-btn.btn-stop:hover { background: #ff7875; }
 
 /* ===== File Cards ===== */
 .msg-files { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
@@ -300,6 +303,66 @@ footer { border-top: 1px solid #e8e8e8; background: #fff; transition: background
 }
 .file-card-badge.badge-ok { background: #e6ffed; color: #389e0d; }
 .file-card-badge.badge-fail { background: #fff1f0; color: #cf1322; }
+
+/* ===== Markdown ===== */
+.assistant-text { line-height: 1.7; }
+.assistant-text h1, .assistant-text h2, .assistant-text h3 { margin: 12px 0 6px; font-weight: 600; }
+.assistant-text h1 { font-size: 17px; }
+.assistant-text h2 { font-size: 16px; }
+.assistant-text h3 { font-size: 15px; }
+.assistant-text p { margin: 6px 0; }
+.assistant-text pre {
+  background: #1e1e2e; color: #cdd6f4; border-radius: 8px;
+  padding: 12px; overflow-x: auto; margin: 8px 0; font-size: 13px;
+  line-height: 1.45;
+}
+.assistant-text code {
+  font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 13px;
+}
+.assistant-text :not(pre) > code {
+  background: #e8e8e8; padding: 1px 6px; border-radius: 4px;
+  color: #e01e5a; font-size: 13px;
+}
+.assistant-text pre code { background: none; padding: 0; color: inherit; }
+.assistant-text ul, .assistant-text ol { padding-left: 22px; margin: 6px 0; }
+.assistant-text li { margin: 2px 0; }
+.assistant-text blockquote {
+  border-left: 3px solid #d9d9d9; margin: 8px 0;
+  padding: 4px 12px; color: #888; background: #fafafa;
+}
+.assistant-text a { color: #1677ff; text-decoration: none; }
+.assistant-text a:hover { text-decoration: underline; }
+.assistant-text table {
+  border-collapse: collapse; margin: 8px 0; width: 100%;
+  font-size: 13px;
+}
+.assistant-text th, .assistant-text td {
+  border: 1px solid #e8e8e8; padding: 6px 10px; text-align: left;
+}
+.assistant-text th { background: #f7f8fa; font-weight: 600; }
+.assistant-text strong { font-weight: 600; }
+.assistant-text em { font-style: italic; }
+.assistant-text del { text-decoration: line-through; }
+
+body.bg-dark .assistant-text :not(pre) > code { background: #2a2a4a; color: #f38ba8; }
+body.bg-dark .assistant-text pre { background: #111; }
+body.bg-dark .assistant-text blockquote { background: #1a1a2e; border-color: #2a2a4a; color: #aaa; }
+body.bg-dark .assistant-text th { background: #1a1a3e; }
+body.bg-dark .assistant-text th, body.bg-dark .assistant-text td { border-color: #2a2a4a; }
+
+/* Copy button */
+.copy-btn {
+  position: absolute; top: 6px; right: 6px;
+  background: rgba(255,255,255,.85); border: 1px solid #e0e0e0;
+  border-radius: 6px; padding: 3px 7px; font-size: 13px;
+  cursor: pointer; opacity: 0; transition: opacity 0.2s;
+  line-height: 1; color: #999;
+}
+.bubble:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { background: #fff; border-color: #1677ff; color: #1677ff; }
+
+body.bg-dark .copy-btn { background: rgba(30,30,50,.85); border-color: #2a2a4a; color: #888; }
+body.bg-dark .copy-btn:hover { border-color: #58a6ff; color: #58a6ff; }
 
 /* ===== Reasoning Box ===== */
 .reasoning-box {

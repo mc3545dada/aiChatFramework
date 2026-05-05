@@ -33,6 +33,67 @@ let currentConvId = null;
 let abortController = null;
 let saveTimer = null;
 let attachedFiles = []; // {file, name, size, type}
+let isStreaming = false;
+
+// ---- Markdown 渲染 ----
+function mdRender(text) {
+  if (!text) return '';
+  // 先转义 HTML
+  let h = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // 代码块 (```lang\n...\n```)
+  h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const cls = lang ? ` class="lang-${escHtml(lang)}"` : '';
+    return `<pre><code${cls}>${code.trim()}</code></pre>`;
+  });
+
+  // 行内代码 `code`
+  h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // 标题
+  h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  h = h.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+  // 加粗 **text**
+  h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // 斜体 *text*
+  h = h.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // 删除线 ~~text~~
+  h = h.replace(/~~(.+?)~~/g, '<del>$1</del>');
+
+  // 链接 [text](url)
+  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  // 引用 > text
+  h = h.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // 无序列表 - item
+  h = h.replace(/^- (.+)$/gm, '<li>$1</li>');
+  h = h.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+  // 有序列表 1. item
+  h = h.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  h = h.replace(/(<li>.*<\/li>\n?)+/g, (m) => m.includes('<ul>') ? m : '<ol>' + m + '</ol>');
+
+  // 段落（连续两行换行分割）
+  const paragraphs = h.split(/\n\n+/);
+  if (paragraphs.length > 1) {
+    h = paragraphs.map(p => {
+      p = p.trim();
+      if (!p) return '';
+      if (/^<(h[123]|pre|ul|ol|blockquote|li)/.test(p)) return p;
+      return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+    }).join('\n');
+  } else {
+    h = h.replace(/\n/g, '<br>');
+  }
+
+  return h;
+}
 
 // ---- 文件上传 ----
 const ALLOWED_EXTENSIONS = new Set([
@@ -42,6 +103,7 @@ const ALLOWED_EXTENSIONS = new Set([
   '.png','.jpg','.jpeg','.gif','.webp','.bmp',
   '.pdf','.doc','.docx','.xls','.xlsx','.zip','.tar','.gz','.7z','.rar',
 ]);
+
 fileBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   for (const file of fileInput.files) {
@@ -133,8 +195,8 @@ async function loadConvList() {
 }
 
 async function switchConv(id) {
-  // 中止正在进行的流式请求
   if (abortController) { abortController.abort(); abortController = null; }
+  isStreaming = false;
   if (currentConvId) await saveCurrentConv();
   try {
     const res = await fetch(`/api/conversations/${id}`);
@@ -166,6 +228,7 @@ async function deleteConv(id) {
 
 newChatBtn.addEventListener('click', async () => {
   if (abortController) { abortController.abort(); abortController = null; }
+  isStreaming = false;
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   if (currentConvId && messages.filter(m => m.content).length > 0) {
     await saveCurrentConv();
@@ -257,8 +320,6 @@ settingsSave.addEventListener('click', async () => {
 });
 
 // ---- 主题背景 ----
-const BGS = ['light','dark','warm','gradient-blue','gradient-green','gradient-sunset'];
-
 function applyBg(name) {
   document.body.className = 'bg-' + name;
   localStorage.setItem('bgTheme', name);
@@ -266,8 +327,6 @@ function applyBg(name) {
     el.classList.toggle('active', el.dataset.bg === name);
   });
 }
-
-// 加载已保存的背景
 applyBg(localStorage.getItem('bgTheme') || 'light');
 
 document.querySelectorAll('.bg-option').forEach(el => {
@@ -279,7 +338,6 @@ testBtn.addEventListener('click', async () => {
   testResult.className = 'test-msg';
   testResult.textContent = '测试中...';
 
-  // 先保存当前输入，确保测试用的是最新配置
   const body = {};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
@@ -306,7 +364,6 @@ fetchModelsBtn.addEventListener('click', async () => {
   fetchModelsBtn.disabled = true;
   fetchModelsBtn.textContent = '...';
 
-  // 先保存当前输入的配置
   const body = {};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
@@ -353,15 +410,12 @@ chatForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const text = userInput.value.trim();
   if (!text && attachedFiles.length === 0) return;
+  if (isStreaming) { stopStreaming(); return; }
 
-  // 上传文件到后端解析
   const fileResults = await uploadFiles();
 
-  // 存入消息（content 只存用户文本，files 存文件元数据）
   const userMsg = { role: 'user', content: text, files: fileResults };
   messages.push(userMsg);
-
-  // 显示用户消息（文本 + 文件卡片）
   appendMessage('user', text, fileResults);
 
   userInput.value = '';
@@ -369,8 +423,8 @@ chatForm.addEventListener('submit', async (e) => {
 
   scheduleSave();
   setLoading(true);
+  showStopBtn();
 
-  // 构建发给 API 的 messages（历史 + 用户消息 + 文件内容）
   const apiMessages = messages.slice(0, -1).map(m => {
     if (m.role === 'user' && m.files && m.files.length) {
       let full = m.content || '';
@@ -381,7 +435,6 @@ chatForm.addEventListener('submit', async (e) => {
     }
     return { role: m.role, content: m.content || '' };
   });
-  // 当前用户消息（文本 + 文件内容拼接）
   let fullUserText = text;
   for (const f of fileResults) {
     if (f.text) fullUserText += `\n\n[文件内容: ${f.name}]\n${f.text}`;
@@ -393,6 +446,8 @@ chatForm.addEventListener('submit', async (e) => {
   const assistantBubble = appendMessage('assistant', '……');
   const assistantText = assistantBubble.querySelector('.assistant-text');
   if (assistantText) assistantText.style.opacity = '0.5';
+
+  isStreaming = true;
 
   try {
     abortController = new AbortController();
@@ -433,10 +488,10 @@ chatForm.addEventListener('submit', async (e) => {
             if (assistantText) assistantText.textContent = parsed.error;
             else assistantBubble.textContent = parsed.error;
             assistantBubble.parentElement.className = 'message error';
+            isStreaming = false;
             return;
           }
 
-          // DeepSeek-R1 等模型的思考内容
           const reasoning = parsed.reasoning_content;
           if (reasoning) {
             fullReasoning += reasoning;
@@ -449,10 +504,10 @@ chatForm.addEventListener('submit', async (e) => {
             fullContent += parsed.content;
             messages[assistantIdx].content = fullContent;
             if (assistantText) {
-              assistantText.textContent = fullContent;
+              assistantText.innerHTML = mdRender(fullContent);
               assistantText.style.opacity = '1';
             } else {
-              assistantBubble.textContent = fullContent;
+              assistantBubble.innerHTML = mdRender(fullContent);
             }
             scrollToBottom();
           }
@@ -472,9 +527,52 @@ chatForm.addEventListener('submit', async (e) => {
     assistantBubble.parentElement.className = 'message error';
   } finally {
     setLoading(false);
+    hideStopBtn();
+    isStreaming = false;
     abortController = null;
   }
 });
+
+function stopStreaming() {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
+  isStreaming = false;
+  setLoading(false);
+  hideStopBtn();
+  // 保存已收到的 partial 内容
+  if (messages.length) scheduleSave();
+}
+
+// ---- 停止生成按钮 ----
+function showStopBtn() {
+  sendBtn.textContent = '停止';
+  sendBtn.className = 'btn-stop';
+}
+
+function hideStopBtn() {
+  sendBtn.textContent = '发送';
+  sendBtn.className = '';
+}
+
+// ---- 复制消息 ----
+function addCopyBtn(bubble, content) {
+  const btn = document.createElement('button');
+  btn.className = 'copy-btn';
+  btn.title = '复制';
+  btn.innerHTML = '&#128203;';
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(content);
+      btn.innerHTML = '&#10003;';
+      btn.style.color = '#52c41a';
+      setTimeout(() => { btn.innerHTML = '&#128203;'; btn.style.color = ''; }, 1500);
+    } catch {}
+  });
+  bubble.appendChild(btn);
+}
 
 // ---- 工具函数 ----
 function escHtml(s) {
@@ -483,13 +581,11 @@ function escHtml(s) {
   return d.innerHTML;
 }
 
-// DeepSeek-R1 思考内容展示
 function updateReasoningDisplay(bubble, text) {
   let el = bubble.querySelector('.reasoning-box');
   if (!el) {
     el = document.createElement('div');
     el.className = 'reasoning-box collapsed';
-
     const header = document.createElement('div');
     header.className = 'reasoning-header';
     header.innerHTML = '<span class="reasoning-toggle">&#9654;</span><span>&#128300; 已思考</span>';
@@ -498,11 +594,9 @@ function updateReasoningDisplay(bubble, text) {
       header.querySelector('.reasoning-toggle').textContent =
         el.classList.contains('collapsed') ? '▶' : '▼';
     });
-
     const content = document.createElement('div');
     content.className = 'reasoning-content';
     content.textContent = text;
-
     el.appendChild(header);
     el.appendChild(content);
     bubble.prepend(el);
@@ -541,11 +635,9 @@ function appendMessage(role, content, files, reasoning) {
   bubble.className = 'bubble';
 
   if (role === 'assistant') {
-    // 渲染保存的 reasoning 内容
     if (reasoning) {
       const box = document.createElement('div');
       box.className = 'reasoning-box collapsed';
-
       const header = document.createElement('div');
       header.className = 'reasoning-header';
       header.innerHTML = '<span class="reasoning-toggle">&#9654;</span><span>&#128300; 已思考</span>';
@@ -554,41 +646,43 @@ function appendMessage(role, content, files, reasoning) {
         header.querySelector('.reasoning-toggle').textContent =
           box.classList.contains('collapsed') ? '▶' : '▼';
       });
-
       const rc = document.createElement('div');
       rc.className = 'reasoning-content';
       rc.textContent = reasoning;
-
       box.appendChild(header);
       box.appendChild(rc);
       bubble.appendChild(box);
     }
-    // assistant 用单独的内容容器，避免 textContent 冲掉 reasoning-box
     const textEl = document.createElement('div');
     textEl.className = 'assistant-text';
-    if (content) textEl.textContent = content;
+    if (content) textEl.innerHTML = mdRender(content);
     bubble.appendChild(textEl);
+    addCopyBtn(bubble, content || '');
   } else {
-    if (content) bubble.textContent = content;
-  }
-
-  // 文件卡片
-  if (files && files.length) {
-    const container = document.createElement('div');
-    container.className = 'msg-files';
-    for (const f of files) {
-      const card = document.createElement('div');
-      card.className = 'file-card';
-      const badgeCls = f.text ? 'badge-ok' : 'badge-fail';
-      const badgeText = f.text ? '已解析' : '不支持解析';
-      card.innerHTML = `
-        <span class="file-card-icon">&#128196;</span>
-        <span class="file-card-name">${escHtml(f.name)}</span>
-        <span class="file-card-badge ${badgeCls}">${badgeText}</span>
-      `;
-      container.appendChild(card);
+    if (content) {
+      const textEl = document.createElement('div');
+      textEl.className = 'user-text';
+      textEl.textContent = content;
+      bubble.appendChild(textEl);
     }
-    bubble.appendChild(container);
+    if (files && files.length) {
+      const container = document.createElement('div');
+      container.className = 'msg-files';
+      for (const f of files) {
+        const card = document.createElement('div');
+        card.className = 'file-card';
+        const badgeCls = f.text ? 'badge-ok' : 'badge-fail';
+        const badgeText = f.text ? '已解析' : '不支持解析';
+        card.innerHTML = `
+          <span class="file-card-icon">&#128196;</span>
+          <span class="file-card-name">${escHtml(f.name)}</span>
+          <span class="file-card-badge ${badgeCls}">${badgeText}</span>
+        `;
+        container.appendChild(card);
+      }
+      bubble.appendChild(container);
+    }
+    addCopyBtn(bubble, content || '');
   }
 
   div.appendChild(label);
@@ -600,7 +694,6 @@ function appendMessage(role, content, files, reasoning) {
 
 function setLoading(active) {
   loading.classList.toggle('hidden', !active);
-  sendBtn.disabled = active;
   fileBtn.disabled = active;
 }
 
