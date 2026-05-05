@@ -126,33 +126,10 @@ function relTime(ts) {
   return t('day_ago',{n:Math.floor(h/24)});
 }
 
-// ---- Markdown + 代码高亮 ----
-const HL_LANGS = {
-  js:['const','let','var','function','return','if','else','for','while','do','switch','case','break','continue','class','import','export','default','async','await','try','catch','throw','new','this','null','undefined','true','false','typeof','instanceof','console','log','error'],
-  ts:['const','let','var','function','return','if','else','for','while','class','import','export','async','await','type','interface','enum','implements','extends','null','undefined','true','false'],
-  py:['def','return','if','else','elif','for','while','import','from','class','try','except','finally','with','as','in','not','and','or','True','False','None','print','self','raise','yield','lambda','pass','break','continue'],
-  cpp:['int','float','double','char','bool','void','auto','const','static','class','struct','enum','if','else','for','while','do','switch','case','break','continue','return','new','delete','true','false','nullptr','include','define','using','namespace','template','typename','public','private','protected','virtual','override','throw','try','catch'],
-  java:['public','private','protected','static','final','class','interface','extends','implements','void','int','float','double','boolean','char','String','if','else','for','while','do','switch','case','break','continue','return','new','try','catch','throw','throws','import','package','null','true','false','this','super'],
-  go:['func','return','if','else','for','range','switch','case','break','continue','go','defer','select','chan','map','struct','interface','type','package','import','var','const','nil','true','false','make','append','len','cap','error'],
-  rs:['fn','let','mut','const','if','else','for','while','loop','match','return','break','continue','struct','enum','impl','trait','use','mod','pub','self','super','true','false','Some','None','Ok','Err','as','in','ref','move','async','await'],
-  sh:['if','then','else','elif','fi','for','while','do','done','case','esac','return','exit','export','local','function','echo','source'],
-};
+// ---- Markdown 渲染 ----
 
-const HASH_COMMENT = new Set(['py','sh','perl','ruby','r','yaml','yml']);
-
-function highlightCode(code, lang) {
-  const keywords = HL_LANGS[lang] || [];
-  let h = escHtml(code);
-  if (keywords.length) {
-    const pat = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'g');
-    h = h.replace(pat, '<span class="hl-kw">$1</span>');
-  }
-  // 只有 # 是注释的语言才匹配 # 注释
-  const cmt = HASH_COMMENT.has(lang) ? /(\/\/[^\n]*|#.*)/g : /\/\/[^\n]*/g;
-  h = h.replace(cmt, '<span class="hl-cm">$1</span>');
-  h = h.replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)/g, '<span class="hl-str">$1</span>');
-  h = h.replace(/(\b\d+\.?\d*\b)/g, '<span class="hl-num">$1</span>');
-  return h;
+function highlightCode(code) {
+  return escHtml(code);
 }
 
 function mdRender(text) {
