@@ -180,7 +180,11 @@ app.post('/api/rename', async (req, res) => {
 
   try {
     const userMsg = messages.find(m => m.role === 'user');
-    const text = typeof userMsg?.content === 'string' ? userMsg.content.slice(0, 100) : '';
+    if (!userMsg) return res.json({ title: '新对话' });
+    let text = '';
+    if (typeof userMsg.content === 'string') text = userMsg.content;
+    else if (Array.isArray(userMsg.content)) text = userMsg.content.map(p => p.type==='text'?p.text:'').join(' ');
+    text = text.trim().slice(0, 150);
     if (!text) return res.json({ title: '新对话' });
 
     const response = await fetch(`${settings.apiBaseUrl}/v1/chat/completions`, {
@@ -189,20 +193,25 @@ app.post('/api/rename', async (req, res) => {
       body: JSON.stringify({
         model: settings.model,
         messages: [
-          { role: 'system', content: 'You are a title generator. Respond with ONLY a short title (max 6 words, in the same language as the conversation). No quotes, no punctuation, no explanation.' },
-          { role: 'user', content: text },
+          { role: 'user', content: '为这段对话生成一个简短的标题（不超过6个字），直接返回标题不要解释不要标点：' + text },
         ],
         stream: false,
-        max_tokens: 15,
+        max_tokens: 100,
         temperature: 0.3,
+        thinking: { type: 'disabled' },
       }),
     });
 
-    if (!response.ok) return res.json({ title: '新对话' });
+    if (!response.ok) {
+      console.error('Rename API error:', response.status, await response.text().catch(()=>''));
+      return res.json({ title: '新对话' });
+    }
     const data = await response.json();
-    const title = (data.choices?.[0]?.message?.content || '').replace(/[""''\n]/g, '').trim();
+    const title = (data.choices?.[0]?.message?.content || '').replace(/[""''\n\r]/g, '').trim();
+    if (title.length > 30) return res.json({ title: '新对话' });
     res.json({ title: title || '新对话' });
-  } catch {
+  } catch (err) {
+    console.error('Rename error:', err.message);
     res.json({ title: '新对话' });
   }
 });
