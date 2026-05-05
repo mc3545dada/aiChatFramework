@@ -95,6 +95,11 @@ const exportBtn = document.getElementById('export-btn');
 const searchInput = document.getElementById('search-input');
 const langSelect = document.getElementById('lang-select');
 const renameToggle = document.getElementById('rename-toggle');
+const presetSelect = document.getElementById('preset-select');
+const presetName = document.getElementById('preset-name');
+const presetLoadBtn = document.getElementById('preset-load-btn');
+const presetSaveBtn = document.getElementById('preset-save-btn');
+const presetDelBtn = document.getElementById('preset-del-btn');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('sidebar');
 const convList = document.getElementById('conv-list');
@@ -383,6 +388,47 @@ fetchModelsBtn.addEventListener('click', async () => {
   try { const d=await(await fetch('/api/models')).json(); if (d.ok && d.models.length) { modelSelect.innerHTML=d.models.map(m=>`<option value="${escHtml(m)}">${escHtml(m)}</option>`).join(''); modelSelectWrap.classList.remove('hidden'); modelSelect.onchange=()=>{settingModel.value=modelSelect.value;}; settingModel.value=''; } else { modelSelectWrap.classList.add('hidden'); alert(d.msg||t('fetch_models_fail')); } } catch(err) { modelSelectWrap.classList.add('hidden'); alert(t('error_prefix')+err.message); } finally { fetchModelsBtn.disabled=false; fetchModelsBtn.innerHTML='&#128269;'; }
 });
 langSelect.addEventListener('change', () => { localStorage.setItem('lang',langSelect.value); applyLang(); loadConvList(); });
+
+// ---- API 预设 ----
+function getPresets() { try { return JSON.parse(localStorage.getItem('apiPresets')||'[]'); } catch { return []; } }
+function savePresets(p) { localStorage.setItem('apiPresets',JSON.stringify(p)); }
+
+function refreshPresetList() {
+  const presets = getPresets();
+  presetSelect.innerHTML = '<option value="">-- 选择预设 --</option>' + presets.map((p,i) => `<option value="${i}">${escHtml(p.name)}</option>`).join('');
+}
+refreshPresetList();
+
+presetSaveBtn.addEventListener('click', () => {
+  const name = presetName.value.trim();
+  if (!name) return;
+  const presets = getPresets();
+  presets.push({ name, apiBaseUrl: settingUrl.value.trim(), model: settingModel.value.trim(), apiKey: settingKey.value.trim() });
+  savePresets(presets);
+  presetName.value = '';
+  refreshPresetList();
+  presetSelect.value = presets.length - 1;
+});
+
+presetLoadBtn.addEventListener('click', () => {
+  const idx = parseInt(presetSelect.value);
+  if (isNaN(idx)) return;
+  const presets = getPresets();
+  const p = presets[idx];
+  if (!p) return;
+  if (p.apiBaseUrl) settingUrl.value = p.apiBaseUrl;
+  if (p.model) settingModel.value = p.model;
+  if (p.apiKey) settingKey.value = p.apiKey;
+});
+
+presetDelBtn.addEventListener('click', () => {
+  const idx = parseInt(presetSelect.value);
+  if (isNaN(idx)) return;
+  let presets = getPresets();
+  presets.splice(idx, 1);
+  savePresets(presets);
+  refreshPresetList();
+});
 
 // ---- 聊天核心 ----
 userInput.addEventListener('input', () => { userInput.style.height='auto'; userInput.style.height=Math.min(userInput.scrollHeight,120)+'px'; });

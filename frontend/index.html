@@ -98,6 +98,18 @@
         <p class="hint" data-i18n="settings_hint">修改后自动保存，重启服务后仍然有效</p>
         <div id="test-result" class="hidden"></div>
         <button id="test-btn" class="btn-test" data-i18n="test_btn">测试 API 连接</button>
+        <div class="preset-section">
+          <label>预设配置</label>
+          <div class="preset-row">
+            <select id="preset-select"><option value="">-- 选择预设 --</option></select>
+            <button id="preset-load-btn" class="btn-small">载入</button>
+          </div>
+          <div class="preset-row">
+            <input id="preset-name" type="text" placeholder="预设名称..." maxlength="20">
+            <button id="preset-save-btn" class="btn-small">保存</button>
+            <button id="preset-del-btn" class="btn-small btn-small-danger">&times;</button>
+          </div>
+        </div>
       </div>
       <div class="modal-body tab-panel hidden" id="tab-model">
         <label><span data-i18n="system_prompt">系统提示词</span>
