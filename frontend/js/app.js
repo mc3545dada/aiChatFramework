@@ -424,12 +424,7 @@ langSelect.addEventListener('change', () => { localStorage.setItem('lang',langSe
 
 // ---- API 预设 ----
 function getPresets() {
-  try {
-    const raw = JSON.parse(localStorage.getItem('apiPresets')||'[]');
-    const sanitized = raw.map(({ apiKey, ...preset }) => preset);
-    if (JSON.stringify(raw) !== JSON.stringify(sanitized)) savePresets(sanitized);
-    return sanitized;
-  } catch { return []; }
+  try { return JSON.parse(localStorage.getItem('apiPresets')||'[]'); } catch { return []; }
 }
 function savePresets(p) { localStorage.setItem('apiPresets',JSON.stringify(p)); }
 
@@ -444,7 +439,10 @@ presetSaveBtn.addEventListener('click', () => {
   if (!name) return;
   const presets = getPresets();
   const existing = presets.findIndex(p => p.name === name);
+  const apiKey = settingKey.value.trim();
   const entry = { name, apiBaseUrl: settingUrl.value.trim(), model: settingModel.value.trim() };
+  if (apiKey) entry.apiKey = apiKey;
+  else if (existing >= 0 && presets[existing].apiKey) entry.apiKey = presets[existing].apiKey;
   if (existing >= 0) { presets[existing] = entry; }
   else { presets.push(entry); }
   savePresets(presets);
@@ -469,11 +467,13 @@ presetLoadBtn.addEventListener('click', async () => {
   if (!p) return;
   if (p.apiBaseUrl) settingUrl.value = p.apiBaseUrl;
   if (p.model) settingModel.value = p.model;
+  settingKey.value = (p.apiKey && p.apiKey !== 'undefined') ? p.apiKey : '';
   if (p.name) presetName.value = p.name;
   // 自动保存到后端（空密钥不发送，保留当前）
   const body = {};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
+  if (settingKey.value.trim()) body.apiKey = settingKey.value.trim();
   try { await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); } catch {}
 });
 
