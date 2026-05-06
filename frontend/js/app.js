@@ -17,6 +17,8 @@ const LANG = {
     settings_saved:'保存失败: ',
     test_ok:'连接成功！响应: ', test_fail:'请先配置 API_KEY',
     fetch_models_fail:'获取模型列表失败',
+    unsupported_file:'文件 {{name}} 的类型暂不支持',
+    preset_missing_key:'此预设没有 API Key，请输入密钥后重新保存该预设',
     export_title:'导出对话', export_md:'导出 Markdown', export_json:'导出 JSON',
     token_label:'~{{n}} tokens', delete_msg:'删除', edit:'编辑',
     pin:'置顶', unpin:'取消置顶', pinned:'已置顶',
@@ -39,6 +41,8 @@ const LANG = {
     settings_saved:'Save failed: ',
     test_ok:'Connected! Response: ', test_fail:'Please configure API_KEY first',
     fetch_models_fail:'Failed to fetch models',
+    unsupported_file:'File type is not supported: {{name}}',
+    preset_missing_key:'This preset has no API key. Enter one and save the preset again.',
     export_title:'Export', export_md:'Export Markdown', export_json:'Export JSON',
     token_label:'~{{n}} tokens', delete_msg:'Delete', edit:'Edit',
     pin:'Pin', unpin:'Unpin', pinned:'Pinned',
@@ -114,6 +118,8 @@ let attachedFiles = [];
 let isStreaming = false;
 let scrollLocked = false;
 let renamePending = false; // 等待 AI 回复后重命名
+let lastKnownApiKey = '';
+let lastKnownApiBaseUrl = '';
 
 function scrollToBottom() {
   if (!scrollLocked) chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -173,13 +179,14 @@ const ALLOWED_EXTENSIONS = new Set([
   '.sh','.bat','.log','.env','.ini','.cfg','.conf','.sql','.rs','.go','.java',
   '.ts','.tsx','.jsx','.vue','.php','.rb','.pl','.lua','.zig','.toml',
   '.png','.jpg','.jpeg','.gif','.webp','.bmp',
-  '.pdf','.doc','.docx','.xls','.xlsx','.zip','.tar','.gz','.7z','.rar',
+  '.docx',
 ]);
+fileInput.accept = [...ALLOWED_EXTENSIONS].join(',');
 fileBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   for (const f of fileInput.files) {
     const ext = '.' + f.name.split('.').pop().toLowerCase();
-    if (!ALLOWED_EXTENSIONS.has(ext)) continue;
+    if (!ALLOWED_EXTENSIONS.has(ext)) { alert(t('unsupported_file',{name:f.name})); continue; }
     if (f.size > 10*1024*1024) { alert(t('file_limit',{name:f.name})); continue; }
     attachedFiles.push({file:f, name:f.name, size:f.size, type:ext});
   }
@@ -192,7 +199,7 @@ chatContainer.addEventListener('drop', e => {
   e.preventDefault(); chatContainer.classList.remove('drag-over');
   for (const f of e.dataTransfer.files) {
     const ext = '.' + f.name.split('.').pop().toLowerCase();
-    if (!ALLOWED_EXTENSIONS.has(ext)) continue;
+    if (!ALLOWED_EXTENSIONS.has(ext)) { alert(t('unsupported_file',{name:f.name})); continue; }
     if (f.size > 10*1024*1024) { alert(t('file_limit',{name:f.name})); continue; }
     attachedFiles.push({file:f, name:f.name, size:f.size, type:ext});
   }
@@ -230,6 +237,20 @@ function fileToBase64(file) {
     const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej;
     r.readAsDataURL(file);
   });
+}
+
+function buildApiMsg(msg, extraFiles) {
+  const files = extraFiles || msg.files || [];
+  const hasImage = files.some(f => f.type === 'image');
+  const textContent = msg.content || '';
+  if (!hasImage && !files.some(f => f.text)) return { role: msg.role, content: textContent };
+  const parts = [];
+  if (textContent) parts.push({ type: 'text', text: textContent });
+  for (const f of files) {
+    if (f.type === 'image' && f.dataUrl) parts.push({ type: 'image_url', image_url: { url: f.dataUrl } });
+    else if (f.text) parts.push({ type: 'text', text: '[文件内容: ' + f.name + ']\n' + f.text });
+  }
+  return { role: msg.role, content: parts.length > 1 ? parts : (parts[0]?.text || textContent) };
 }
 
 // ---- 侧边栏 ----
@@ -379,7 +400,12 @@ settingsSave.addEventListener('click', async () => {
   const body={};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
-  const sk = settingKey.value.trim(); if (sk) body.apiKey = sk;
+  const sk = settingKey.value.trim();
+  if (sk) {
+    body.apiKey = sk;
+    lastKnownApiKey = sk;
+    lastKnownApiBaseUrl = settingUrl.value.trim();
+  }
   localStorage.setItem('systemPrompt',settingSystem.value);
   try { await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); settingsOverlay.classList.add('hidden'); settingKey.value=''; } catch(err) { alert(t('settings_saved')+err.message); }
 });
@@ -394,19 +420,23 @@ renameToggle.addEventListener('change',()=>localStorage.setItem('autoRename',ren
 testBtn.addEventListener('click', async () => {
   testResult.className='test-msg'; testResult.textContent='...';
   const body={}; if (settingUrl.value.trim()) body.apiBaseUrl=settingUrl.value.trim(); if (settingModel.value.trim()) body.model=settingModel.value.trim(); if (settingKey.value.trim()) body.apiKey=settingKey.value.trim();
+  if (body.apiKey) { lastKnownApiKey = body.apiKey; lastKnownApiBaseUrl = settingUrl.value.trim(); }
   if (Object.keys(body).length) await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   try { const d=await(await fetch('/api/test',{method:'POST'})).json(); testResult.className=d.ok?'test-msg test-ok':'test-msg test-fail'; testResult.textContent=d.ok?t('test_ok')+(d.msg||''):d.msg; } catch(err) { testResult.className='test-msg test-fail'; testResult.textContent=t('error_prefix')+err.message; }
 });
 fetchModelsBtn.addEventListener('click', async () => {
   fetchModelsBtn.disabled=true; fetchModelsBtn.textContent='...';
   const body={}; if (settingUrl.value.trim()) body.apiBaseUrl=settingUrl.value.trim(); if (settingModel.value.trim()) body.model=settingModel.value.trim(); if (settingKey.value.trim()) body.apiKey=settingKey.value.trim();
+  if (body.apiKey) { lastKnownApiKey = body.apiKey; lastKnownApiBaseUrl = settingUrl.value.trim(); }
   if (Object.keys(body).length) await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   try { const d=await(await fetch('/api/models')).json(); if (d.ok && d.models.length) { modelSelect.innerHTML=d.models.map(m=>`<option value="${escHtml(m)}">${escHtml(m)}</option>`).join(''); modelSelectWrap.classList.remove('hidden'); modelSelect.onchange=()=>{settingModel.value=modelSelect.value;}; settingModel.value=''; } else { modelSelectWrap.classList.add('hidden'); alert(d.msg||t('fetch_models_fail')); } } catch(err) { modelSelectWrap.classList.add('hidden'); alert(t('error_prefix')+err.message); } finally { fetchModelsBtn.disabled=false; fetchModelsBtn.innerHTML='&#128269;'; }
 });
 langSelect.addEventListener('change', () => { localStorage.setItem('lang',langSelect.value); applyLang(); loadConvList(); });
 
 // ---- API 预设 ----
-function getPresets() { try { return JSON.parse(localStorage.getItem('apiPresets')||'[]'); } catch { return []; } }
+function getPresets() {
+  try { return JSON.parse(localStorage.getItem('apiPresets')||'[]'); } catch { return []; }
+}
 function savePresets(p) { localStorage.setItem('apiPresets',JSON.stringify(p)); }
 
 function refreshPresetList() {
@@ -420,7 +450,11 @@ presetSaveBtn.addEventListener('click', () => {
   if (!name) return;
   const presets = getPresets();
   const existing = presets.findIndex(p => p.name === name);
-  const entry = { name, apiBaseUrl: settingUrl.value.trim(), model: settingModel.value.trim(), apiKey: settingKey.value.trim() || undefined };
+  const currentBaseUrl = settingUrl.value.trim();
+  const apiKey = settingKey.value.trim() || (lastKnownApiBaseUrl === currentBaseUrl ? lastKnownApiKey : '');
+  const entry = { name, apiBaseUrl: settingUrl.value.trim(), model: settingModel.value.trim() };
+  if (apiKey) entry.apiKey = apiKey;
+  else if (existing >= 0 && presets[existing].apiKey) entry.apiKey = presets[existing].apiKey;
   if (existing >= 0) { presets[existing] = entry; }
   else { presets.push(entry); }
   savePresets(presets);
@@ -447,12 +481,17 @@ presetLoadBtn.addEventListener('click', async () => {
   if (p.model) settingModel.value = p.model;
   settingKey.value = (p.apiKey && p.apiKey !== 'undefined') ? p.apiKey : '';
   if (p.name) presetName.value = p.name;
+  if (!settingKey.value.trim()) {
+    alert(t('preset_missing_key'));
+    return;
+  }
+  lastKnownApiKey = settingKey.value.trim();
+  lastKnownApiBaseUrl = settingUrl.value.trim();
   // 自动保存到后端（空密钥不发送，保留当前）
   const body = {};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
-  const trimmedKey = settingKey.value.trim();
-  if (trimmedKey) body.apiKey = trimmedKey;
+  if (settingKey.value.trim()) body.apiKey = settingKey.value.trim();
   try { await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); } catch {}
 });
 
@@ -475,21 +514,6 @@ chatForm.addEventListener('submit', async e => {
   const text = userInput.value.trim();
   if (!text && !attachedFiles.length) return;
   const fileResults = await uploadFiles();
-  // 构建 API 消息（含图片 image_url 支持）
-  function buildApiMsg(msg, extraFiles) {
-    const files = extraFiles || msg.files || [];
-    const hasImage = files.some(f => f.type === 'image');
-    const textContent = msg.content || '';
-    if (!hasImage && !files.some(f => f.text)) return { role: msg.role, content: textContent };
-    const parts = [];
-    if (textContent) parts.push({ type: 'text', text: textContent });
-    for (const f of files) {
-      if (f.type === 'image' && f.dataUrl) parts.push({ type: 'image_url', image_url: { url: f.dataUrl } });
-      else if (f.text) parts.push({ type: 'text', text: '[文件内容: ' + f.name + ']\n' + f.text });
-    }
-    return { role: msg.role, content: parts.length > 1 ? parts : (parts[0]?.text || textContent) };
-  }
-
   const userMsg = { role:'user', content:text, files:fileResults, ts:Date.now() };
   messages.push(userMsg);
   // 用户消息单独渲染纯文本（图片用卡片展示）
@@ -498,8 +522,7 @@ chatForm.addEventListener('submit', async e => {
   scheduleSave(); setLoading(true); showStopBtn();
   const sp = localStorage.getItem('systemPrompt')||'';
   const apiMsgs = sp ? [{role:'system',content:sp}] : [];
-  for (let i=0; i<messages.length-1; i++) apiMsgs.push(buildApiMsg(messages[i]));
-  apiMsgs.push(buildApiMsg({ role:'user', content: text, files: fileResults }));
+  for (const msg of messages) apiMsgs.push(buildApiMsg(msg));
   const asIdx = messages.length;
   messages.push({role:'assistant',content:'',ts:Date.now()});
   const ab = appendMessage('assistant','……');
@@ -548,27 +571,26 @@ function regenerateLast() {
   const last = messages[messages.length-1];
   if (last && last.role==='user') {
     const t2 = typeof last.content==='string' ? last.content : '';
-    attachedFiles = last.files ? last.files.map(f=>({file:null,name:f.name,size:0,type:'.'+f.name.split('.').pop()})) : [];
-    doSubmit(t2,last.files||[]);
+    doSubmit(t2,last.files||[],{ appendUser:false });
   }
 }
-async function doSubmit(text,files) {
+async function doSubmit(text,files,options={}) {
   if (isStreaming) return;
-  const fr = await uploadFiles();
-  for (const f of files) if (!fr.find(r=>r.name===f.name)) fr.push(f);
+  const appendUser = options.appendUser !== false;
+  let fr = files || [];
+  if (appendUser) {
+    fr = await uploadFiles();
+    for (const f of files) if (!fr.find(r=>r.name===f.name)) fr.push(f);
+  }
   attachedFiles=[];
-  const um = {role:'user',content:text,files:fr,ts:Date.now()};
-  messages.push(um); appendMessage('user',text,fr); scheduleSave(); setLoading(true); showStopBtn();
+  if (appendUser) {
+    const um = {role:'user',content:text,files:fr,ts:Date.now()};
+    messages.push(um); appendMessage('user',text,fr); scheduleSave();
+  }
+  setLoading(true); showStopBtn();
   const sp = localStorage.getItem('systemPrompt')||'';
   const am = sp ? [{role:'system',content:sp}] : [];
-  for (let i=0; i<messages.length-1; i++) {
-    const m=messages[i];
-    if (m.role==='user'&&m.files&&m.files.length) { let f=m.content||''; for (const ff of m.files) if (ff.text) f+='\n\n[文件内容: '+ff.name+']\n'+ff.text; am.push({role:'user',content:f}); }
-    else am.push({role:m.role,content:m.content||''});
-  }
-  let ft = text;
-  for (const f of fr) if (f.text) ft += '\n\n[文件内容: '+f.name+']\n'+f.text;
-  am.push({role:'user',content:ft});
+  for (const msg of messages) am.push(buildApiMsg(msg));
   const aidx = messages.length;
   messages.push({role:'assistant',content:'',ts:Date.now()});
   const ab = appendMessage('assistant','……'); const at = ab.querySelector('.assistant-text');
