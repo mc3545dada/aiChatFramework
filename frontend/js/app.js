@@ -18,6 +18,7 @@ const LANG = {
     test_ok:'连接成功！响应: ', test_fail:'请先配置 API_KEY',
     fetch_models_fail:'获取模型列表失败',
     unsupported_file:'文件 {{name}} 的类型暂不支持',
+    preset_missing_key:'此预设没有 API Key，请输入密钥后重新保存该预设',
     export_title:'导出对话', export_md:'导出 Markdown', export_json:'导出 JSON',
     token_label:'~{{n}} tokens', delete_msg:'删除', edit:'编辑',
     pin:'置顶', unpin:'取消置顶', pinned:'已置顶',
@@ -41,6 +42,7 @@ const LANG = {
     test_ok:'Connected! Response: ', test_fail:'Please configure API_KEY first',
     fetch_models_fail:'Failed to fetch models',
     unsupported_file:'File type is not supported: {{name}}',
+    preset_missing_key:'This preset has no API key. Enter one and save the preset again.',
     export_title:'Export', export_md:'Export Markdown', export_json:'Export JSON',
     token_label:'~{{n}} tokens', delete_msg:'Delete', edit:'Edit',
     pin:'Pin', unpin:'Unpin', pinned:'Pinned',
@@ -116,6 +118,8 @@ let attachedFiles = [];
 let isStreaming = false;
 let scrollLocked = false;
 let renamePending = false; // 等待 AI 回复后重命名
+let lastKnownApiKey = '';
+let lastKnownApiBaseUrl = '';
 
 function scrollToBottom() {
   if (!scrollLocked) chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -396,7 +400,12 @@ settingsSave.addEventListener('click', async () => {
   const body={};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
   if (settingModel.value.trim()) body.model = settingModel.value.trim();
-  const sk = settingKey.value.trim(); if (sk) body.apiKey = sk;
+  const sk = settingKey.value.trim();
+  if (sk) {
+    body.apiKey = sk;
+    lastKnownApiKey = sk;
+    lastKnownApiBaseUrl = settingUrl.value.trim();
+  }
   localStorage.setItem('systemPrompt',settingSystem.value);
   try { await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); settingsOverlay.classList.add('hidden'); settingKey.value=''; } catch(err) { alert(t('settings_saved')+err.message); }
 });
@@ -411,12 +420,14 @@ renameToggle.addEventListener('change',()=>localStorage.setItem('autoRename',ren
 testBtn.addEventListener('click', async () => {
   testResult.className='test-msg'; testResult.textContent='...';
   const body={}; if (settingUrl.value.trim()) body.apiBaseUrl=settingUrl.value.trim(); if (settingModel.value.trim()) body.model=settingModel.value.trim(); if (settingKey.value.trim()) body.apiKey=settingKey.value.trim();
+  if (body.apiKey) { lastKnownApiKey = body.apiKey; lastKnownApiBaseUrl = settingUrl.value.trim(); }
   if (Object.keys(body).length) await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   try { const d=await(await fetch('/api/test',{method:'POST'})).json(); testResult.className=d.ok?'test-msg test-ok':'test-msg test-fail'; testResult.textContent=d.ok?t('test_ok')+(d.msg||''):d.msg; } catch(err) { testResult.className='test-msg test-fail'; testResult.textContent=t('error_prefix')+err.message; }
 });
 fetchModelsBtn.addEventListener('click', async () => {
   fetchModelsBtn.disabled=true; fetchModelsBtn.textContent='...';
   const body={}; if (settingUrl.value.trim()) body.apiBaseUrl=settingUrl.value.trim(); if (settingModel.value.trim()) body.model=settingModel.value.trim(); if (settingKey.value.trim()) body.apiKey=settingKey.value.trim();
+  if (body.apiKey) { lastKnownApiKey = body.apiKey; lastKnownApiBaseUrl = settingUrl.value.trim(); }
   if (Object.keys(body).length) await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   try { const d=await(await fetch('/api/models')).json(); if (d.ok && d.models.length) { modelSelect.innerHTML=d.models.map(m=>`<option value="${escHtml(m)}">${escHtml(m)}</option>`).join(''); modelSelectWrap.classList.remove('hidden'); modelSelect.onchange=()=>{settingModel.value=modelSelect.value;}; settingModel.value=''; } else { modelSelectWrap.classList.add('hidden'); alert(d.msg||t('fetch_models_fail')); } } catch(err) { modelSelectWrap.classList.add('hidden'); alert(t('error_prefix')+err.message); } finally { fetchModelsBtn.disabled=false; fetchModelsBtn.innerHTML='&#128269;'; }
 });
@@ -439,7 +450,8 @@ presetSaveBtn.addEventListener('click', () => {
   if (!name) return;
   const presets = getPresets();
   const existing = presets.findIndex(p => p.name === name);
-  const apiKey = settingKey.value.trim();
+  const currentBaseUrl = settingUrl.value.trim();
+  const apiKey = settingKey.value.trim() || (lastKnownApiBaseUrl === currentBaseUrl ? lastKnownApiKey : '');
   const entry = { name, apiBaseUrl: settingUrl.value.trim(), model: settingModel.value.trim() };
   if (apiKey) entry.apiKey = apiKey;
   else if (existing >= 0 && presets[existing].apiKey) entry.apiKey = presets[existing].apiKey;
@@ -469,6 +481,12 @@ presetLoadBtn.addEventListener('click', async () => {
   if (p.model) settingModel.value = p.model;
   settingKey.value = (p.apiKey && p.apiKey !== 'undefined') ? p.apiKey : '';
   if (p.name) presetName.value = p.name;
+  if (!settingKey.value.trim()) {
+    alert(t('preset_missing_key'));
+    return;
+  }
+  lastKnownApiKey = settingKey.value.trim();
+  lastKnownApiBaseUrl = settingUrl.value.trim();
   // 自动保存到后端（空密钥不发送，保留当前）
   const body = {};
   if (settingUrl.value.trim()) body.apiBaseUrl = settingUrl.value.trim();
