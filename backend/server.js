@@ -8,6 +8,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || '127.0.0.1';
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const CONV_DIR = path.join(__dirname, 'conversations');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -44,8 +45,129 @@ function getSettings() {
   };
 }
 
+function parseAllowedOrigins() {
+  const explicit = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  return new Set([
+    `http://localhost:${PORT}`,
+    `http://127.0.0.1:${PORT}`,
+    ...explicit,
+  ]);
+}
+
+const ALLOWED_ORIGINS = parseAllowedOrigins();
+
+function isAllowedOrigin(origin) {
+  return !origin || ALLOWED_ORIGINS.has(origin);
+}
+
+function apiUrl(settings, pathname) {
+  const base = settings.apiBaseUrl.replace(/\/+$/, '');
+  const suffix = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  if (base.endsWith('/v1') && suffix.startsWith('/v1/')) {
+    return `${base}${suffix.slice(3)}`;
+  }
+  return `${base}${suffix}`;
+}
+
+function apiHeaders(settings) {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${settings.apiKey}`,
+  };
+}
+
+function isUnsupportedMultimodalError(text) {
+  return /image_url|multimodal|vision/i.test(text || '');
+}
+
+function isUnsupportedReasoningError(text) {
+  return /thinking|reasoning_effort|unsupported parameter|unsupported field|unrecognized.*parameter|unknown.*parameter/i.test(text || '');
+}
+
+function messagesContainImages(messages) {
+  return messages.some(m => Array.isArray(m.content) && m.content.some(p => p.type === 'image_url'));
+}
+
+function stripImageParts(messages) {
+  return messages.map(m => {
+    if (typeof m.content === 'string') return m;
+    if (Array.isArray(m.content)) {
+      const txt = m.content
+        .filter(p => p.type === 'text')
+        .map(p => p.text)
+        .join('\n');
+      return { ...m, content: txt || '' };
+    }
+    return m;
+  });
+}
+
+function buildChatPayload({ messages, model, settings, thinkingEnabled, reasoningEffort, temperature, top_p, includeThinking = true }) {
+  return {
+    model: model || settings.model,
+    messages,
+    stream: true,
+    ...(includeThinking && thinkingEnabled !== undefined ? {
+      thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' },
+    } : {}),
+    // reasoning_effort 只有思考开启时才有效
+    ...(includeThinking && thinkingEnabled !== false && reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+    ...(temperature !== undefined ? { temperature } : {}),
+    ...(top_p !== undefined ? { top_p } : {}),
+  };
+}
+
+async function requestChat(settings, payload) {
+  return fetch(apiUrl(settings, '/v1/chat/completions'), {
+    method: 'POST',
+    headers: apiHeaders(settings),
+    body: JSON.stringify(payload),
+  });
+}
+
+async function pipeChatStream(response, res) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data: ')) continue;
+      const data = trimmed.slice(6);
+      if (data === '[DONE]') continue;
+
+      try {
+        const parsed = JSON.parse(data);
+        const choice = parsed.choices?.[0]?.delta;
+        if (choice?.reasoning_content) {
+          res.write(`data: ${JSON.stringify({ reasoning_content: choice.reasoning_content })}\n\n`);
+        }
+        if (choice?.content) {
+          res.write(`data: ${JSON.stringify({ content: choice.content })}\n\n`);
+        }
+      } catch {}
+    }
+  }
+}
+
 // 中间件
-app.use(cors());
+app.use(cors({
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+}));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
@@ -74,11 +196,17 @@ app.post('/api/settings', (req, res) => {
 
 // POST /api/upload — 上传并解析文件
 const TEXT_EXTS = new Set(['.txt','.md','.js','.py','.html','.css','.json','.csv','.xml','.yaml','.yml','.sh','.bat','.log','.env','.ini','.cfg','.conf','.sql','.rs','.go','.java','.ts','.tsx','.jsx','.vue','.php','.rb','.pl','.lua','.zig','.toml']);
+const PARSEABLE_EXTS = new Set([...TEXT_EXTS, '.docx']);
 
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: '请选择文件' });
 
   const ext = path.extname(req.file.originalname).toLowerCase();
+  if (!PARSEABLE_EXTS.has(ext)) {
+    fs.unlink(req.file.path, () => {});
+    return res.status(400).json({ error: '不支持解析该文件类型' });
+  }
+
   let text = '';
 
   try {
@@ -115,12 +243,9 @@ app.post('/api/test', async (req, res) => {
   }
 
   try {
-    const response = await fetch(`${settings.apiBaseUrl}/v1/chat/completions`, {
+    const response = await fetch(apiUrl(settings, '/v1/chat/completions'), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.apiKey}`,
-      },
+      headers: apiHeaders(settings),
       body: JSON.stringify({
         model: settings.model,
         messages: [{ role: 'user', content: 'Say hi in one word.' }],
@@ -151,9 +276,17 @@ app.get('/api/models', async (req, res) => {
   }
 
   try {
-    const response = await fetch(`${settings.apiBaseUrl}/models`, {
+    const modelsUrl = apiUrl(settings, '/v1/models');
+    const fallbackModelsUrl = apiUrl(settings, '/models');
+    let response = await fetch(modelsUrl, {
       headers: { 'Authorization': `Bearer ${settings.apiKey}` },
     });
+
+    if ([404, 405].includes(response.status) && fallbackModelsUrl !== modelsUrl) {
+      response = await fetch(fallbackModelsUrl, {
+        headers: { 'Authorization': `Bearer ${settings.apiKey}` },
+      });
+    }
 
     if (!response.ok) {
       const text = await response.text().catch(() => '');
@@ -187,24 +320,37 @@ app.post('/api/rename', async (req, res) => {
     text = text.trim().slice(0, 150);
     if (!text) return res.json({ title: '新对话' });
 
-    const response = await fetch(`${settings.apiBaseUrl}/v1/chat/completions`, {
+    const payload = {
+      model: settings.model,
+      messages: [
+        { role: 'user', content: '为这段对话生成一个简短的标题（不超过9个字），直接返回标题不要解释不要标点：' + text },
+      ],
+      stream: false,
+      max_tokens: 100,
+      temperature: 0.3,
+      thinking: { type: 'disabled' },
+    };
+
+    let response = await fetch(apiUrl(settings, '/v1/chat/completions'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.apiKey}` },
-      body: JSON.stringify({
-        model: settings.model,
-        messages: [
-          { role: 'user', content: '为这段对话生成一个简短的标题（不超过9个字），直接返回标题不要解释不要标点：' + text },
-        ],
-        stream: false,
-        max_tokens: 100,
-        temperature: 0.3,
-        thinking: { type: 'disabled' },
-      }),
+      headers: apiHeaders(settings),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      console.error('Rename API error:', response.status, await response.text().catch(()=>''));
-      return res.json({ title: '新对话' });
+      const errorText = await response.text().catch(() => '');
+      if (response.status === 400 && isUnsupportedReasoningError(errorText)) {
+        const { thinking, ...plainPayload } = payload;
+        response = await fetch(apiUrl(settings, '/v1/chat/completions'), {
+          method: 'POST',
+          headers: apiHeaders(settings),
+          body: JSON.stringify(plainPayload),
+        });
+      }
+      if (!response.ok) {
+        console.error('Rename API error:', response.status, errorText);
+        return res.json({ title: '新对话' });
+      }
     }
     const data = await response.json();
     const title = (data.choices?.[0]?.message?.content || '').replace(/[""''\n\r]/g, '').trim();
@@ -235,109 +381,54 @@ app.post('/api/chat', async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
 
   try {
-    const response = await fetch(`${settings.apiBaseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: model || settings.model,
-        messages,
-        stream: true,
-        ...(thinkingEnabled !== undefined ? {
-          thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' }
-        } : {}),
-        // reasoning_effort 只有思考开启时才有效
-        ...(thinkingEnabled !== false && reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-        ...(temperature !== undefined ? { temperature } : {}),
-        ...(top_p !== undefined ? { top_p } : {}),
-      }),
-    });
+    let attemptMessages = messages;
+    let includeThinking = true;
+    const notices = [];
+    let lastStatus = 500;
+    let lastErrorText = '';
 
-    if (!response.ok && response.status === 400) {
-      const errorText = await response.text();
-      if (errorText.includes('image_url')) {
-        const plain = messages.map(m => {
-          if (typeof m.content === 'string') return m;
-          if (Array.isArray(m.content)) {
-            const txt = m.content.filter(p => p.type === 'text').map(p => p.text).join('\n');
-            return { ...m, content: txt || '' };
-          }
-          return m;
-        });
-        const retry = await fetch(`${settings.apiBaseUrl}/v1/chat/completions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.apiKey}` },
-          body: JSON.stringify({
-            model: model || settings.model, messages: plain, stream: true,
-            ...(thinkingEnabled !== undefined ? { thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' } } : {}),
-            ...(thinkingEnabled !== false && reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-            ...(temperature !== undefined ? { temperature } : {}),
-            ...(top_p !== undefined ? { top_p } : {}),
-          }),
-        });
-        if (retry.ok) {
-          // 通知前端此模型不支持多模态
-          res.write(`data: ${JSON.stringify({ notice: '此模型不支持多模态，已自动移除图片' })}\n\n`);
-          const rdr = retry.body.getReader(); const dec = new TextDecoder(); let buf = '';
-          while (true) {
-            const { done, value } = await rdr.read(); if (done) break;
-            buf += dec.decode(value, { stream: true });
-            const lines = buf.split('\n'); buf = lines.pop() || '';
-            for (const line of lines) {
-              const t = line.trim(); if (!t.startsWith('data: ')) continue;
-              const d = t.slice(6); if (d === '[DONE]') continue;
-              try {
-                const p = JSON.parse(d); const ch = p.choices?.[0]?.delta;
-                if (ch?.reasoning_content) res.write(`data: ${JSON.stringify({ reasoning_content: ch.reasoning_content })}\n\n`);
-                if (ch?.content) res.write(`data: ${JSON.stringify({ content: ch.content })}\n\n`);
-              } catch {}
-            }
-          }
-          res.write('data: [DONE]\n\n'); res.end(); return;
+    for (let i = 0; i < 4; i++) {
+      const payload = buildChatPayload({
+        messages: attemptMessages,
+        model,
+        settings,
+        thinkingEnabled,
+        reasoningEffort,
+        temperature,
+        top_p,
+        includeThinking,
+      });
+      const response = await requestChat(settings, payload);
+
+      if (response.ok) {
+        for (const notice of notices) {
+          res.write(`data: ${JSON.stringify({ notice })}\n\n`);
         }
+        await pipeChatStream(response, res);
+        res.write('data: [DONE]\n\n');
+        res.end();
+        return;
       }
-      res.write(`data: ${JSON.stringify({ error: `API 错误 (${response.status}): ${errorText}` })}\n\n`);
-      res.write('data: [DONE]\n\n'); res.end(); return;
-    }
-    if (!response.ok) {
-      const errorText = await response.text();
-      res.write(`data: ${JSON.stringify({ error: `API 错误 (${response.status}): ${errorText}` })}\n\n`);
-      res.write('data: [DONE]\n\n'); res.end(); return;
-    }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+      lastStatus = response.status;
+      lastErrorText = await response.text().catch(() => '');
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(data);
-          const choice = parsed.choices?.[0]?.delta;
-          if (choice?.reasoning_content) {
-            res.write(`data: ${JSON.stringify({ reasoning_content: choice.reasoning_content })}\n\n`);
-          }
-          if (choice?.content) {
-            res.write(`data: ${JSON.stringify({ content: choice.content })}\n\n`);
-          }
-        } catch {}
+      if (response.status === 400 && messagesContainImages(attemptMessages) && isUnsupportedMultimodalError(lastErrorText)) {
+        attemptMessages = stripImageParts(attemptMessages);
+        notices.push('此模型不支持多模态，已自动移除图片');
+        continue;
       }
+
+      if (response.status === 400 && includeThinking && isUnsupportedReasoningError(lastErrorText)) {
+        includeThinking = false;
+        notices.push('此模型不支持思考参数，已自动关闭 thinking/reasoning_effort');
+        continue;
+      }
+
+      break;
     }
 
+    res.write(`data: ${JSON.stringify({ error: `API 错误 (${lastStatus}): ${lastErrorText}` })}\n\n`);
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (err) {
@@ -470,10 +561,11 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html'));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
   const s = getSettings();
-  console.log(`aiChatFramework started: http://localhost:${PORT}`);
+  console.log(`aiChatFramework started: http://${HOST}:${PORT}`);
   console.log(`   API: ${s.apiBaseUrl}`);
   console.log(`   Model: ${s.model}`);
   console.log(`   API Key: ${s.apiKey ? 'configured' : 'NOT configured'}`);
+  console.log(`   CORS origins: ${[...ALLOWED_ORIGINS].join(', ')}`);
 });

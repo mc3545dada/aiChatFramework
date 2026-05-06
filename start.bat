@@ -37,6 +37,6 @@ echo Waiting for server...
 timeout /t 3
 
 :: Open browser
-start http://localhost:3001
+start http://127.0.0.1:3001
 
 exit

@@ -30,7 +30,7 @@ npm install
 npm start
 ```
 
-Open http://localhost:3001
+Open http://127.0.0.1:3001
 
 Or double-click `start.bat` on Windows (auto-creates .env from template on first run, auto-opens browser, auto-closes launcher).
 
